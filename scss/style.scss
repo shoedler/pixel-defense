@@ -1,0 +1,60 @@
+$color-bg: hsl(0deg 0% 100% / 8%);
+$color-bg-accent: hsla(230, 5%, 80%, 0.08);
+
+$color-red: rgb(216 50 50);
+$color-green: rgb(86 216 50);
+$color-blue: rgb(57 123 200);
+$color-yellow: rgb(210, 210, 49);
+$color-turquoise: rgb(57, 201, 201);
+$color-darkgreen: rgb(79, 138, 62);
+$color-gray: rgb(92, 92, 92);
+
+$color-active: rgb(214 219 31);
+
+body {
+  margin: 0;
+  background-image: radial-gradient($color-bg-accent 2px, transparent 0), radial-gradient($color-bg 1px, transparent 0);
+  background-size: 32px 32px, 8px 8px;
+  background-position: center;
+  background-color: hsl(230deg 5% 9%);
+  position: relative;
+}
+
+.wrapper {
+  margin: 4vw;
+}
+
+* {
+  font-family: Fira Sans, sans-serif;
+  color: white;
+}
+
+.text {
+  p {
+    font-family: Fira Code, monospace;
+    font-size: 1rem;
+    padding-bottom: 1rem;
+    margin: 0;
+  }
+
+  h1 {
+    font-family: Fira Code, monospace;
+    font-size: 2rem;
+    font-weight: 500;
+    padding-top: 0.1rem;
+    padding-bottom: 1.5rem;
+    margin: 0;
+  }
+  
+  h2 {
+    font-family: Fira Code, monospace;
+    font-size: 1rem;
+    padding: 0;
+    margin: 0;
+    line-height: 1;
+  }
+  
+  h1:hover, h2:hover {
+    cursor: pointer;
+  }
+}

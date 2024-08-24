@@ -1,0 +1,26 @@
+{
+  "name": "app-node-ts-template",
+  "version": "0.0.1",
+  "description": "A nice, simple template for TS apps",
+  "author": "shoedler",
+  "license": "Apache-2.0",
+  "main": "dist/bundle.js",
+  "scripts": {
+    "watch:webpack": "webpack --watch",
+    "watch:sass": "sass --watch --update --style=expanded scss:dist",
+    "build-prod:sass": "sass --no-source-map --style=compressed scss:dist",
+    "build-prod:webpack": "webpack --config webpack.prod.js",
+    "build-prod": "run-p build-prod:*",
+    "serve": "browser-sync start --server -w",
+    "start": "run-p watch:* serve"
+  },
+  "devDependencies": {
+    "browser-sync": "^3.0.2",
+    "npm-run-all": "^4.1.5",
+    "sass": "^1.77.2",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.4.5",
+    "webpack": "^5.91.0",
+    "webpack-cli": "^5.1.4"
+  }
+}
