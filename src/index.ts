@@ -1,4 +1,4 @@
-const TICK_RATE = 60; // ticks per second
+const TICK_RATE = 50; // ticks per second
 const TICK_DURATION = 1000 / TICK_RATE; // duration of a tick in milliseconds
 const GRID_WIDTH = 1000; // pixels
 const GRID_HEIGHT = 1000; // pixels
@@ -16,9 +16,9 @@ const GRID_SIZE = 10; // pixels per grid cell (width and height)
     engine.renderTasks.push((data) => {
       engine.variingFloodFill(data, { r: 200, g: 100, b: 50 }, 30);
     });
-    engine.renderTasks.push((data) => {
-      for (let x = 0; x < engine.width; x++) {
-        engine.setCell(data, x, engine.height / 2, { r: 0, g: 0, b: 0 });
+    engine.renderTasks.push((_, { width, height, setCell }) => {
+      for (let x = 0; x < width; x++) {
+        setCell(x, height / 2, { r: 0, g: 0, b: 0 });
       }
     });
 
@@ -26,18 +26,14 @@ const GRID_SIZE = 10; // pixels per grid cell (width and height)
 
     // Define the game loop
     let lastTime = 0;
-    let data: ImageData;
     function gameLoop(currentTime: number) {
       const deltaTime = currentTime - lastTime;
 
-      if (!data) {
-        data = engine.render();
-      }
+      engine.render();
 
       if (deltaTime > TICK_DURATION) {
         lastTime = currentTime - (deltaTime % TICK_DURATION);
-        engine.put(data);
-        data = undefined;
+        engine.dispatch();
       }
 
       requestAnimationFrame(gameLoop);
@@ -50,11 +46,22 @@ const GRID_SIZE = 10; // pixels per grid cell (width and height)
 
 type Color = { r: number; g: number; b: number; a?: number };
 
+type RenderTask = (data: ImageData, utils: RenderTaskUtils) => void;
+
+type RenderTaskUtils = {
+  setCell: (x: number, y: number, color: Color) => void;
+  height: number;
+  width: number;
+};
+
 class RenderEngine {
-  public readonly width: number;
-  public readonly height: number;
+  private readonly width: number;
+  private readonly height: number;
   private readonly context: CanvasRenderingContext2D;
-  public readonly renderTasks: ((data: ImageData) => void)[] = [];
+  public readonly renderTasks: RenderTask[] = [];
+
+  private buffer: ImageData | undefined = undefined;
+  private readonly utils: RenderTaskUtils;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -71,6 +78,14 @@ class RenderEngine {
     this.height = Math.floor(this.canvasHeight / this.gridSize);
 
     this.context.fillStyle = "black";
+
+    // Initialize the utils object here to avoid creating it every frame
+    this.utils = {
+      setCell: (x: number, y: number, color: Color) =>
+        this.setCell(this.buffer as ImageData, x, y, color),
+      height: this.height,
+      width: this.width,
+    };
   }
 
   public reset() {
@@ -78,19 +93,38 @@ class RenderEngine {
     this.context.fillRect(0, 0, this.canvasWidth, this.canvasHeight);
   }
 
-  public put(data: ImageData) {
-    this.context.putImageData(data, 0, 0);
+  /**
+   * Dispatches the rendered scene to the canvas.
+   * This function is idempotent, thus it can be called multiple times without side effects.
+   * Idempotency is cleared when the `render` function is called @see render
+   */
+  public dispatch(): void {
+    if (!this.buffer) {
+      return;
+    }
+
+    this.context.putImageData(this.buffer, 0, 0);
+    this.buffer = undefined;
   }
 
-  public render(): ImageData {
-    const data = this.context.getImageData(
+  /**
+   * Executes all render tasks and stores the rendered scene in memory.
+   * This function is idempotent, thus it can be called multiple times without side effects.
+   * Idempotency is cleared when the `dispatch` function is called @see dispatch
+   */
+  public render(): void {
+    if (this.buffer) {
+      return;
+    }
+
+    this.buffer = this.context.getImageData(
       0,
       0,
       this.canvasWidth,
       this.canvasHeight
     );
-    this.renderTasks.forEach((task) => task(data));
-    return data;
+
+    this.renderTasks.forEach((task) => task(this.buffer, this.utils));
   }
 
   public setCell(data: ImageData, x: number, y: number, color: Color) {
