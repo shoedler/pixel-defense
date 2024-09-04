@@ -17,18 +17,98 @@ const GRID_SIZE = 10; // pixels per grid cell (width and height)
       GRID_HEIGHT,
       GRID_SIZE,
       (grid) => {
-        const variance = 30;
-        const color = { r: 200, g: 100, b: 50, a: 255 };
+        const { width, height } = grid;
 
-        for (let x = 0; x < grid.width; x++) {
-          for (let y = 0; y < grid.height; y++) {
+        const variance = 30;
+        const bgColor = { r: 200, g: 100, b: 50, a: 255 };
+        const pathColor = { r: 50, g: 25, b: 12, a: 255 };
+
+        // Background generation
+        for (let x = 0; x < width; x++) {
+          for (let y = 0; y < height; y++) {
             const sign = Math.random() > 0.5 ? 1 : -1;
             const random = Math.random() * variance * sign;
-            const r = color.r + random;
-            const g = color.g + random;
-            const b = color.b + random;
+            const r = bgColor.r + random;
+            const g = bgColor.g + random;
+            const b = bgColor.b + random;
             grid.set(x, y, { r, g, b });
           }
+        }
+
+        // Path generation
+        const pathWidth = 3;
+        const directions = [
+          { x: pathWidth, y: 0 }, // Right
+          { x: 0, y: -pathWidth }, // Up
+          { x: 0, y: pathWidth }, // Down
+        ];
+
+        // Start the path somewhere along the left edge, not touching top (y = 0) or bottom (y = height)
+        let currentX = 0;
+        let currentY = Math.floor(Math.random() * (height - 2 * pathWidth)) + 3; // Ensure starting position is within bounds
+
+        const isWithinBounds = (x: number, y: number): boolean => {
+          return x >= 0 && x < width && y > 0 && y < height - pathWidth;
+        };
+
+        const isOccupied = (x: number, y: number): boolean => {
+          const cell = grid.get(x, y);
+          return (
+            cell !== undefined &&
+            cell.color.r === pathColor.r &&
+            cell.color.g === pathColor.g &&
+            cell.color.b === pathColor.b &&
+            cell.color.a === pathColor.a
+          );
+        };
+
+        const countPathNeighbors = (x: number, y: number): number => {
+          const neighbors = [
+            { x: x - pathWidth, y: y }, // Left
+            { x: x + pathWidth, y: y }, // Right
+            { x: x, y: y - pathWidth }, // Up
+            { x: x, y: y + pathWidth }, // Down
+          ];
+
+          return neighbors.filter(({ x, y }) => isOccupied(x, y)).length;
+        };
+
+        const drawSegment = (x: number, y: number): void => {
+          // Draw a pathWidth x pathWidth segment on the grid
+          for (let dx = 0; dx < pathWidth; dx++) {
+            for (let dy = 0; dy < pathWidth; dy++) {
+              grid.set(x + dx, y + dy, pathColor);
+            }
+          }
+        };
+
+        // Draw the initial segment
+        drawSegment(currentX, currentY);
+
+        while (currentX < width - pathWidth) {
+          // Randomly choose a valid direction
+          const validMoves = directions.filter(
+            ({ x, y }) =>
+              isWithinBounds(currentX + x, currentY + y) &&
+              !isOccupied(currentX + x, currentY + y) &&
+              countPathNeighbors(currentX + x, currentY + y) <= 1 // Ensure next move doesn't touch the path
+          );
+
+          if (validMoves.length === 0) {
+            // If no valid moves are available, stop the path
+            break;
+          }
+
+          // Choose a random valid move
+          const { x: moveX, y: moveY } =
+            validMoves[Math.floor(Math.random() * validMoves.length)];
+
+          // Update the current position
+          currentX += moveX;
+          currentY += moveY;
+
+          // Draw the new segment
+          drawSegment(currentX, currentY);
         }
       }
     );
@@ -179,7 +259,7 @@ class RenderEngine {
     }
 
     this.context.fillStyle = "white";
-    this.context.font = "16px Consolas";
+    this.context.font = "12*pathWidthpx Consolas";
     this.context.fillText(`fps ${this.fps.toFixed(1)}`, 10, 20);
   }
 
