@@ -1,11 +1,14 @@
+import { backgroundRenderTask } from "./background";
+import { state } from "./state";
+
 const TICK_RATE = 40; // ticks per second
 const TICK_DURATION = 1000 / TICK_RATE; // duration of a tick in milliseconds
 const GRID_WIDTH = 1000; // pixels
-const GRID_HEIGHT = 1000; // pixels
-const GRID_SIZE = 10; // pixels per grid cell (width and height)
+const GRID_HEIGHT = 800; // pixels
+const GRID_SIZE = 5; // pixels per grid cell (width and height)
 
 (() => {
-  document.addEventListener("DOMContentLoaded", (_) => {
+  document.addEventListener("DOMContentLoaded", _ => {
     const sketch = document.querySelector(".sketch") as HTMLDivElement;
     const canvas = document.createElement("canvas");
     sketch.appendChild(canvas);
@@ -16,109 +19,64 @@ const GRID_SIZE = 10; // pixels per grid cell (width and height)
       GRID_WIDTH,
       GRID_HEIGHT,
       GRID_SIZE,
-      (grid) => {
-        const { width, height } = grid;
-
-        const variance = 30;
-        const bgColor = { r: 200, g: 100, b: 50, a: 255 };
-        const pathColor = { r: 50, g: 25, b: 12, a: 255 };
-
-        // Background generation
-        for (let x = 0; x < width; x++) {
-          for (let y = 0; y < height; y++) {
-            const sign = Math.random() > 0.5 ? 1 : -1;
-            const random = Math.random() * variance * sign;
-            const r = bgColor.r + random;
-            const g = bgColor.g + random;
-            const b = bgColor.b + random;
-            grid.set(x, y, { r, g, b });
-          }
-        }
-
-        // Path generation
-        const pathWidth = 3;
-        const directions = [
-          { x: pathWidth, y: 0 }, // Right
-          { x: 0, y: -pathWidth }, // Up
-          { x: 0, y: pathWidth }, // Down
-        ];
-
-        // Start the path somewhere along the left edge, not touching top (y = 0) or bottom (y = height)
-        let currentX = 0;
-        let currentY = Math.floor(Math.random() * (height - 2 * pathWidth)) + 3; // Ensure starting position is within bounds
-
-        const isWithinBounds = (x: number, y: number): boolean => {
-          return x >= 0 && x < width && y > 0 && y < height - pathWidth;
-        };
-
-        const isOccupied = (x: number, y: number): boolean => {
-          const cell = grid.get(x, y);
-          return (
-            cell !== undefined &&
-            cell.color.r === pathColor.r &&
-            cell.color.g === pathColor.g &&
-            cell.color.b === pathColor.b &&
-            cell.color.a === pathColor.a
-          );
-        };
-
-        const countPathNeighbors = (x: number, y: number): number => {
-          const neighbors = [
-            { x: x - pathWidth, y: y }, // Left
-            { x: x + pathWidth, y: y }, // Right
-            { x: x, y: y - pathWidth }, // Up
-            { x: x, y: y + pathWidth }, // Down
-          ];
-
-          return neighbors.filter(({ x, y }) => isOccupied(x, y)).length;
-        };
-
-        const drawSegment = (x: number, y: number): void => {
-          // Draw a pathWidth x pathWidth segment on the grid
-          for (let dx = 0; dx < pathWidth; dx++) {
-            for (let dy = 0; dy < pathWidth; dy++) {
-              grid.set(x + dx, y + dy, pathColor);
-            }
-          }
-        };
-
-        // Draw the initial segment
-        drawSegment(currentX, currentY);
-
-        while (currentX < width - pathWidth) {
-          // Randomly choose a valid direction
-          const validMoves = directions.filter(
-            ({ x, y }) =>
-              isWithinBounds(currentX + x, currentY + y) &&
-              !isOccupied(currentX + x, currentY + y) &&
-              countPathNeighbors(currentX + x, currentY + y) <= 1 // Ensure next move doesn't touch the path
-          );
-
-          if (validMoves.length === 0) {
-            // If no valid moves are available, stop the path
-            break;
-          }
-
-          // Choose a random valid move
-          const { x: moveX, y: moveY } =
-            validMoves[Math.floor(Math.random() * validMoves.length)];
-
-          // Update the current position
-          currentX += moveX;
-          currentY += moveY;
-
-          // Draw the new segment
-          drawSegment(currentX, currentY);
-        }
-      }
+      backgroundRenderTask
     );
 
-    engine.queue((grid) => {
-      for (let x = 0; x < grid.width; x++) {
-        grid.set(x, 0, { r: 100, g: 0, b: 0 });
-        grid.set(x, 1, { r: 100, g: 0, b: 0 });
-        grid.set(x, 2, { r: 100, g: 0, b: 0 });
+    const bloke = {
+      x: 0,
+      y: state.path.startY,
+      dir: { x: 1, y: 0 },
+      c: 0,
+    };
+
+    engine.queue((grid, background) => {
+      const blokeColor = { r: 255, g: 255, b: 255, a: 255 };
+
+      bloke.c++;
+      if (bloke.c % 5 !== 0) {
+        grid.set(bloke.x, bloke.y, blokeColor);
+        return;
       }
+
+      // Helper function to check if the bloke can move to a given position
+      const canMove = ({ x, y }: { x: number; y: number }): boolean => {
+        return (
+          grid.isWithinBounds(bloke.x + x, bloke.y + y) && // Is it within grid bounds?
+          background.isCell(bloke.x + x, bloke.y + y, state.path.color) // Is it on the path?
+        );
+      };
+
+      // Helper function to move the bloke to a given position
+      const moveBloke = (x: number, y: number): void => {
+        grid.set(x, y, blokeColor);
+        bloke.x = x;
+        bloke.y = y;
+      };
+
+      // Try to move in the current direction first.
+      if (canMove(bloke.dir)) {
+        moveBloke(bloke.x + bloke.dir.x, bloke.y + bloke.dir.y);
+        return;
+      }
+
+      const neighbors = [
+        { x: 1, y: 0 }, // Right
+        { x: 0, y: -1 }, // Up
+        { x: 0, y: 1 }, // Down
+      ];
+
+      const validDirs = neighbors.filter(canMove);
+
+      if (validDirs.length === 0) {
+        console.log("No valid dirs");
+        return;
+      }
+
+      // If there are multiple valid directions, prioritize moving right
+      const nextDir = validDirs.find(({ x }) => x === 1) ?? validDirs[0];
+      bloke.dir = nextDir;
+
+      moveBloke(bloke.x + bloke.dir.x, bloke.y + bloke.dir.y);
     });
 
     engine.reset();
@@ -143,9 +101,9 @@ const GRID_SIZE = 10; // pixels per grid cell (width and height)
   });
 })();
 
-type Color = { r: number; g: number; b: number; a?: number };
+export type Color = { r: number; g: number; b: number; a?: number };
 
-type RenderTask = (grid: Grid) => void;
+export type RenderTask = (grid: Grid, background?: Grid) => void;
 
 type Cell = {
   x: number;
@@ -177,6 +135,15 @@ class Grid {
 
     this.cells[x][y] = { x, y, color };
   }
+
+  public isWithinBounds = (x: number, y: number): boolean => {
+    return x >= 0 && x < this.width && y >= 0 && y < this.height;
+  };
+
+  public isCell = (x: number, y: number, color: Color): boolean => {
+    const cell = this.get(x, y);
+    return cell !== undefined && cell.color === color;
+  };
 }
 
 class RenderEngine {
@@ -184,7 +151,7 @@ class RenderEngine {
   private readonly height: number;
   private readonly context: CanvasRenderingContext2D;
   private readonly renderTasks: RenderTask[] = [];
-  private backgroundLayer: ImageData;
+  private backgroundLayer: { data: ImageData; grid: Grid };
   private buffer: ImageData;
   private dispatchTimes: number[] = [];
   private fps: number = 0;
@@ -226,7 +193,7 @@ class RenderEngine {
 
     // Store the background layer, so we can clone it later
     const data = engine.gridToImageData(grid);
-    engine.backgroundLayer = data;
+    engine.backgroundLayer = { data, grid };
 
     return engine;
   }
@@ -247,6 +214,7 @@ class RenderEngine {
     }
 
     this.context.putImageData(this.buffer, 0, 0);
+    this.buffer = undefined;
 
     // Fps counter
     if (this.dispatchTimes.length > 20) {
@@ -259,7 +227,7 @@ class RenderEngine {
     }
 
     this.context.fillStyle = "white";
-    this.context.font = "12*pathWidthpx Consolas";
+    this.context.font = "12px Consolas";
     this.context.fillText(`fps ${this.fps.toFixed(1)}`, 10, 20);
   }
 
@@ -276,16 +244,16 @@ class RenderEngine {
     // Render all tasks into the same grid
     const grid = this.fresh();
     for (const task of this.renderTasks) {
-      task(grid);
+      task(grid, this.backgroundLayer.grid);
     }
 
     // Composite the background layer and the resulting layer of the render tasks
     // by cloning the background layer and drawing the grid on top of it
     const clone = new ImageData(
-      this.backgroundLayer.width,
-      this.backgroundLayer.height
+      this.backgroundLayer.data.width,
+      this.backgroundLayer.data.height
     );
-    clone.data.set(this.backgroundLayer.data);
+    clone.data.set(this.backgroundLayer.data.data);
 
     // This will leave us with a final buffer that we can dispatch to the canvas
     this.buffer = this.gridToImageData(grid, clone);
