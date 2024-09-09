@@ -8,7 +8,7 @@ const GRID_HEIGHT = 800; // pixels
 const GRID_SIZE = 5; // pixels per grid cell (width and height)
 
 (() => {
-  document.addEventListener("DOMContentLoaded", _ => {
+  document.addEventListener("DOMContentLoaded", (_) => {
     const sketch = document.querySelector(".sketch") as HTMLDivElement;
     const canvas = document.createElement("canvas");
     sketch.appendChild(canvas);
@@ -23,60 +23,25 @@ const GRID_SIZE = 5; // pixels per grid cell (width and height)
     );
 
     const bloke = {
-      x: 0,
-      y: state.path.startY,
-      dir: { x: 1, y: 0 },
+      progress: 0,
       c: 0,
     };
 
     engine.queue((grid, background) => {
       const blokeColor = { r: 255, g: 255, b: 255, a: 255 };
+      const { x, y } = state.path.data[bloke.progress];
 
       bloke.c++;
       if (bloke.c % 5 !== 0) {
-        grid.set(bloke.x, bloke.y, blokeColor);
-        return;
-      }
-
-      // Helper function to check if the bloke can move to a given position
-      const canMove = ({ x, y }: { x: number; y: number }): boolean => {
-        return (
-          grid.isWithinBounds(bloke.x + x, bloke.y + y) && // Is it within grid bounds?
-          background.isCell(bloke.x + x, bloke.y + y, state.path.color) // Is it on the path?
-        );
-      };
-
-      // Helper function to move the bloke to a given position
-      const moveBloke = (x: number, y: number): void => {
         grid.set(x, y, blokeColor);
-        bloke.x = x;
-        bloke.y = y;
-      };
-
-      // Try to move in the current direction first.
-      if (canMove(bloke.dir)) {
-        moveBloke(bloke.x + bloke.dir.x, bloke.y + bloke.dir.y);
         return;
       }
 
-      const neighbors = [
-        { x: 1, y: 0 }, // Right
-        { x: 0, y: -1 }, // Up
-        { x: 0, y: 1 }, // Down
-      ];
-
-      const validDirs = neighbors.filter(canMove);
-
-      if (validDirs.length === 0) {
-        console.log("No valid dirs");
-        return;
+      if (bloke.progress < state.path.data.length) {
+        bloke.progress++;
       }
 
-      // If there are multiple valid directions, prioritize moving right
-      const nextDir = validDirs.find(({ x }) => x === 1) ?? validDirs[0];
-      bloke.dir = nextDir;
-
-      moveBloke(bloke.x + bloke.dir.x, bloke.y + bloke.dir.y);
+      grid.set(x, y, blokeColor);
     });
 
     engine.reset();
@@ -105,7 +70,7 @@ export type Color = { r: number; g: number; b: number; a?: number };
 
 export type RenderTask = (grid: Grid, background?: Grid) => void;
 
-type Cell = {
+export type Cell = {
   x: number;
   y: number;
   color: Color;

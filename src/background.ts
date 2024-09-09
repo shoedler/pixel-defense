@@ -1,7 +1,7 @@
-import { RenderTask } from ".";
+import { Cell, RenderTask } from ".";
 import { state } from "./state";
 
-const generateBackground: RenderTask = grid => {
+const generateBackground: RenderTask = (grid) => {
   const { width, height } = grid;
   const {
     variance,
@@ -18,9 +18,10 @@ const generateBackground: RenderTask = grid => {
   }
 };
 
-const generatePath: RenderTask = grid => {
+const generatePath: RenderTask = (grid) => {
   const { width, height } = grid;
   const { width: pathWidth, color } = state.path;
+  const pathfindingData: Cell[] = [];
 
   const directions = [
     { x: pathWidth, y: 0 }, // Right
@@ -48,6 +49,10 @@ const generatePath: RenderTask = grid => {
   };
 
   const drawSegment = (x: number, y: number): void => {
+    const xMiddle = x + Math.floor(pathWidth / 2);
+    const yMiddle = y + Math.floor(pathWidth / 2);
+    pathfindingData.push({ x: xMiddle, y: yMiddle, color }); // Save the middle point
+
     // Draw a pathWidth x pathWidth segment on the grid
     for (let dx = 0; dx < pathWidth; dx++) {
       for (let dy = 0; dy < pathWidth; dy++) {
@@ -59,6 +64,7 @@ const generatePath: RenderTask = grid => {
   // Draw the initial segment
   drawSegment(currentX, currentY);
 
+  // Generate the path
   while (currentX < width - pathWidth) {
     // Randomly choose a valid direction
     const validMoves = directions.filter(
@@ -84,9 +90,49 @@ const generatePath: RenderTask = grid => {
     // Draw the new segment
     drawSegment(currentX, currentY);
   }
+
+  // Since a segment is usually larger than one pixel, we need to fill in the gaps between segments in the pathfindingData
+  // This is done by interpolating between the middle points of each segment
+  const interpolatedPathfindingData: Cell[] = [];
+  const interpolate = (a: number, b: number): number[] => {
+    if (a === b) {
+      return [a];
+    }
+
+    const result = [];
+
+    if (a < b) {
+      for (let i = a; i < b; i++) {
+        result.push(i);
+      }
+    } else {
+      for (let i = a; i > b; i--) {
+        result.push(i);
+      }
+    }
+
+    return result;
+  };
+
+  for (let i = 0; i < pathfindingData.length - 1; i++) {
+    const { x: x1, y: y1 } = pathfindingData[i];
+    const { x: x2, y: y2 } = pathfindingData[i + 1];
+
+    const xInterpolation = interpolate(x1, x2);
+    const yInterpolation = interpolate(y1, y2);
+
+    for (const x of xInterpolation) {
+      for (const y of yInterpolation) {
+        interpolatedPathfindingData.push({ x, y, color });
+      }
+    }
+  }
+
+  // Update the global state with the pathfinding data
+  state.path.data = interpolatedPathfindingData;
 };
 
-export const backgroundRenderTask: RenderTask = grid => {
+export const backgroundRenderTask: RenderTask = (grid) => {
   generateBackground(grid);
   generatePath(grid);
 };
