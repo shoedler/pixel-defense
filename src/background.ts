@@ -1,7 +1,7 @@
 import { Cell, RenderTask } from ".";
 import { state } from "./state";
 
-const generateBackground: RenderTask = (grid) => {
+const generateBackground: RenderTask = grid => {
   const { width, height } = grid;
   const {
     variance,
@@ -18,7 +18,7 @@ const generateBackground: RenderTask = (grid) => {
   }
 };
 
-const generatePath: RenderTask = (grid) => {
+const generatePath: RenderTask<Cell[]> = grid => {
   const { width, height } = grid;
   const { width: pathWidth, color } = state.path;
   const pathfindingData: Cell[] = [];
@@ -49,9 +49,10 @@ const generatePath: RenderTask = (grid) => {
   };
 
   const drawSegment = (x: number, y: number): void => {
+    // Save the middle point of the segment to the pathfinding data
     const xMiddle = x + Math.floor(pathWidth / 2);
     const yMiddle = y + Math.floor(pathWidth / 2);
-    pathfindingData.push({ x: xMiddle, y: yMiddle, color }); // Save the middle point
+    pathfindingData.push({ x: xMiddle, y: yMiddle, color });
 
     // Draw a pathWidth x pathWidth segment on the grid
     for (let dx = 0; dx < pathWidth; dx++) {
@@ -128,11 +129,10 @@ const generatePath: RenderTask = (grid) => {
     }
   }
 
-  // Update the global state with the pathfinding data
-  state.path.data = interpolatedPathfindingData;
+  return interpolatedPathfindingData;
 };
 
-export const backgroundRenderTask: RenderTask = (grid) => {
+export const backgroundRenderTask: RenderTask<Cell[]> = grid => {
   generateBackground(grid);
-  generatePath(grid);
+  return generatePath(grid);
 };
