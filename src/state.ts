@@ -1,4 +1,4 @@
-import { Cell, Color } from ".";
+import { Color } from ".";
 
 export type Enemy = {
   progress: number;
@@ -14,6 +14,7 @@ export type Tower = {
   range: number;
   damage: number;
   lastShot: number;
+  fireRate: number;
   color: Color;
 };
 

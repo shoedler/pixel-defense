@@ -29,14 +29,53 @@ const GRID_SIZE = 5; // pixels per grid cell (width and height)
         grid.set(x, y, enemy.color);
       }
       for (const tower of state.entities.towers) {
-        grid.set(tower.x, tower.y, { r: 255, g: 255, b: 255 });
+        const { x, y, color } = tower;
+        grid.set(x, y, color);
       }
+    });
+
+    // Event listener for placing / removing towers
+    document.addEventListener("click", (event) => {
+      const { x, y } = event;
+      const { width, height } = canvas;
+      const { left, top } = canvas.getBoundingClientRect();
+
+      // Bail out if the click was outside the canvas
+      if (x < left || x > left + width || y < top || y > top + height) {
+        return;
+      }
+
+      // Calculate the relative position of the click within the canvas
+      const relativeX = x - left;
+      const relativeY = y - top;
+
+      // Calculate the grid cell that was clicked, based on the GRID_SIZE
+      const gridX = Math.floor(((relativeX / width) * GRID_WIDTH) / GRID_SIZE);
+      const gridY = Math.floor(((relativeY / height) * GRID_HEIGHT) / GRID_SIZE);
+
+      // Check if a tower already exists at the clicked position
+      if (state.entities.towers.some((tower) => tower.x === gridX && tower.y === gridY)) {
+        // TODO: Either remove the tower or show a message to the user
+        console.log("Tower already exists at this position");
+        return;
+      }
+
+      // Add a tower at the clicked position
+      state.entities.towers.push({
+        x: gridX,
+        y: gridY,
+        range: 10,
+        damage: 1,
+        lastShot: 0,
+        fireRate: 1000,
+        color: { r: 200, g: 200, b: 255 },
+      });
     });
 
     engine.reset();
 
     state.entities.enemies.push({
-      progress: 20,
+      progress: 0,
       health: 100,
       color: { r: 255, g: 0, b: 0 },
       lastMove: performance.now(),
@@ -51,8 +90,8 @@ const GRID_SIZE = 5; // pixels per grid cell (width and height)
       speed: 100,
     });
 
+    // Define the update function for all entities. This function is idempotent, thus it can be called multiple times without side effects.
     const { enemies, towers } = state.entities;
-
     const update = idempotent(() => {
       updateEnemies(enemies, pathfindingData);
       updateTowers(towers, enemies);
@@ -85,7 +124,7 @@ const updateEnemies = (enemies: Enemy[], pathfindingData: Cell[]) => {
       continue;
     }
 
-    if (enemy.progress < pathfindingData.length) {
+    if (enemy.progress < pathfindingData.length - 1) {
       enemy.progress++;
     }
 
@@ -100,7 +139,7 @@ const updateTowers = (towers: Tower[], enemies: Enemy[]) => {
     );
 
     if (target) {
-      // Shoot
+      // TODO: Shoot
     }
   }
 };
