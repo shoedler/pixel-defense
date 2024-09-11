@@ -1,7 +1,8 @@
-import { Cell, RenderTask } from ".";
+import { RenderTask } from "./engine";
+import { Cell } from "./grid";
 import { state } from "./state";
 
-const generateBackground: RenderTask = grid => {
+const generateBackground: RenderTask = (grid) => {
   const { width, height } = grid;
   const {
     variance,
@@ -18,7 +19,7 @@ const generateBackground: RenderTask = grid => {
   }
 };
 
-const generatePath: RenderTask<Cell[]> = grid => {
+const generatePath: RenderTask<Cell[]> = (grid) => {
   const { width, height } = grid;
   const { width: pathWidth, color } = state.path;
   const pathfindingData: Cell[] = [];
@@ -31,8 +32,7 @@ const generatePath: RenderTask<Cell[]> = grid => {
 
   // Start the path somewhere along the left edge, not touching top (y = 0) or bottom (y = height)
   let currentX = 0;
-  let currentY =
-    Math.floor(Math.random() * (height - 2 * pathWidth)) + pathWidth; // Ensure starting position is within bounds
+  let currentY = Math.floor(Math.random() * (height - 2 * pathWidth)) + pathWidth; // Ensure starting position is within bounds
 
   // Save the starting position to global state
   state.path.startY = currentY;
@@ -81,8 +81,7 @@ const generatePath: RenderTask<Cell[]> = grid => {
     }
 
     // Choose a random valid move
-    const { x: moveX, y: moveY } =
-      validMoves[Math.floor(Math.random() * validMoves.length)];
+    const { x: moveX, y: moveY } = validMoves[Math.floor(Math.random() * validMoves.length)];
 
     // Update the current position
     currentX += moveX;
@@ -132,7 +131,7 @@ const generatePath: RenderTask<Cell[]> = grid => {
   return interpolatedPathfindingData;
 };
 
-export const backgroundRenderTask: RenderTask<Cell[]> = grid => {
+export const backgroundRenderTask: RenderTask<Cell[]> = (grid) => {
   generateBackground(grid);
   return generatePath(grid);
 };
