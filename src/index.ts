@@ -1,6 +1,5 @@
 import { backgroundRenderTask } from "./background";
 import { RenderEngine } from "./engine";
-import { Cell } from "./grid";
 import { SoundGenerator } from "./sound";
 import { Enemy, generateEnemy, generateTower, state, Tower, TowerType } from "./state";
 
@@ -8,7 +7,7 @@ const TICK_RATE = 40; // ticks per second
 const TICK_DURATION = 1000 / TICK_RATE; // duration of a tick in milliseconds
 const GRID_WIDTH = 1000; // pixels
 const GRID_HEIGHT = 800; // pixels
-const GRID_SIZE = 3; // pixels per grid cell (width and height)
+const GRID_SIZE = 8; // pixels per grid cell (width and height)
 
 (() => {
   document.addEventListener("DOMContentLoaded", (_) => {
@@ -29,7 +28,7 @@ const GRID_SIZE = 3; // pixels per grid cell (width and height)
     );
 
     // Render task for entities
-    engine.queue((grid) => {
+    engine.registerRenderTask((grid) => {
       for (const enemy of state.entities.enemies) {
         const { x, y } = pathfindingData[enemy.progress];
         grid.set(x, y, enemy.color);
@@ -40,28 +39,40 @@ const GRID_SIZE = 3; // pixels per grid cell (width and height)
       }
     });
 
-    // Post processing task for fire missions
-    engine.post((context) => {
-      while (state.entities.fireMissions.length) {
-        const { tower, target } = state.entities.fireMissions.pop()!;
-        const { x, y } = pathfindingData[target.progress];
-        const ofs = GRID_SIZE / 2;
-        context.beginPath();
-        context.moveTo(tower.x * GRID_SIZE + ofs, tower.y * GRID_SIZE + ofs);
-        context.lineTo(x * GRID_SIZE + ofs, y * GRID_SIZE + ofs);
-        context.lineWidth = 3;
-        context.strokeStyle = `rgb(${tower.color.r}, ${tower.color.g}, ${tower.color.b})`;
-        context.stroke();
+    // Post processing task for UI
+    engine.registerPostProcessingTask((context) => {
+      context.fillStyle = state.ui.fillStyle;
+      context.font = state.ui.font;
+      context.fillText(
+        `enemies: ${state.entities.enemies.length} / towers: ${state.entities.towers.length}`,
+        GRID_WIDTH * 0.75,
+        20
+      );
 
-        // Play a sound and reduce the health of the target
-        // TODO: Unsure if we really want to do both of these things in the render loop...
-        soundGenerator.playGunshot(tower.type);
-        target.health -= tower.damage;
+      context.fillText(`money: ${state.user.money}`, GRID_WIDTH * 0.75, 40);
+      context.fillText(`tower type: ${TowerType[state.user.towerType]}`, GRID_WIDTH * 0.75, 60);
+
+      const dps = state.entities.towers.reduce((acc, tower) => acc + tower.damage * (1000 / tower.fireRate), 0);
+      context.fillText(`dps: ${dps}`, GRID_WIDTH * 0.75, 80);
+
+      const totalEnemyHealth = state.entities.enemies.reduce((acc, enemy) => acc + enemy.health, 0);
+      context.fillText(`total enemy health: ${totalEnemyHealth}`, GRID_WIDTH * 0.75, 100);
+    });
+
+    // Event listener for changing the tower type
+    document.addEventListener("keydown", (event) => {
+      const key = event.key;
+      if (key === "1") {
+        state.user.towerType = TowerType.Basic;
+      } else if (key === "2") {
+        state.user.towerType = TowerType.Sniper;
+      } else if (key === "3") {
+        state.user.towerType = TowerType.Machinegun;
       }
     });
 
     // Event listener for placing / removing towers
-    document.addEventListener("click", (event) => {
+    document.addEventListener("mouseup", (event) => {
       const { x, y } = event;
       const { width, height } = canvas;
       const { left, top } = canvas.getBoundingClientRect();
@@ -80,28 +91,114 @@ const GRID_SIZE = 3; // pixels per grid cell (width and height)
       const gridY = Math.floor(((relativeY / height) * GRID_HEIGHT) / GRID_SIZE);
 
       // Check if a tower already exists at the clicked position
-      if (state.entities.towers.some((tower) => tower.x === gridX && tower.y === gridY)) {
-        // TODO: Either remove the tower or show a message to the user
-        console.log("Tower already exists at this position");
+      const tower = state.entities.towers.find((tower) => tower.x === gridX && tower.y === gridY);
+
+      // If there is a tower at the clicked position, remove it or bail out if the user wants to place a tower there
+      if (tower) {
+        if (event.shiftKey) {
+          state.entities.towers = state.entities.towers.filter((t) => t !== tower);
+          soundGenerator.playRemovePlacement();
+        } else {
+          soundGenerator.playInvalidPlacement();
+        }
+        return;
+      }
+
+      // It's also invalid to place a tower on the path
+      if (
+        pathfindingData.some((cell) => {
+          // This should be in sync with the pathgen logic
+          let { x, y } = cell;
+          x -= Math.floor(state.path.width / 2);
+          y -= Math.floor(state.path.width / 2);
+          return x <= gridX && gridX < x + state.path.width && y <= gridY && gridY < y + state.path.width;
+        })
+      ) {
+        soundGenerator.playInvalidPlacement();
+        return;
+      }
+
+      // Bail out if the user doesn't have enough money
+      if (state.user.money < 1) {
+        soundGenerator.playNotEnoughMoney();
         return;
       }
 
       // Add a tower at the clicked position
-      const randomType = [TowerType.Basic, TowerType.Sniper, TowerType.Machinegun][Math.floor(Math.random() * 3)] as TowerType;
-      generateTower(gridX, gridY, randomType);
+      soundGenerator.playPlacement();
+      state.user.money -= 1;
+      generateTower(gridX, gridY, state.user.towerType);
     });
 
     engine.reset();
 
+    // Update function for enemies, runs every tick
+    const tickEnemies = (enemies: Enemy[]): Enemy[] => {
+      const aliveEnemies = enemies.filter((enemy) => enemy.health > 0);
+
+      // The player earns money for each enemy that reaches the end of the path
+      state.user.money += enemies.length - aliveEnemies.length;
+
+      for (const enemy of aliveEnemies) {
+        if (enemy.lastMove + enemy.speed > performance.now()) {
+          continue;
+        }
+
+        if (enemy.progress < pathfindingData.length - 1) {
+          enemy.progress++;
+        }
+
+        enemy.lastMove = performance.now();
+      }
+
+      return aliveEnemies;
+    };
+
+    const tickTowers = (towers: Tower[], enemies: Enemy[]) => {
+      for (const tower of towers) {
+        if (tower.lastShot + tower.fireRate > performance.now()) {
+          continue;
+        }
+
+        const target = enemies.find((enemy) => {
+          // Check if the enemy is within range of the tower (Manhattan distance)
+          const { x, y } = pathfindingData[enemy.progress];
+          return Math.abs(x - tower.x) + Math.abs(y - tower.y) <= tower.range;
+        });
+
+        if (target) {
+          // Queue a post processing task to draw the shot
+          // This is nice because this will also play the gunshot sound and apply damage to the target, meaning that everything happens in the same tick
+          engine.queueOneShotPostProcessingTask((context) => {
+            const { x, y } = pathfindingData[target.progress];
+            const ofs = GRID_SIZE / 2;
+
+            context.beginPath();
+            context.moveTo(tower.x * GRID_SIZE + ofs, tower.y * GRID_SIZE + ofs);
+            context.lineTo(x * GRID_SIZE + ofs, y * GRID_SIZE + ofs);
+            context.lineWidth = GRID_SIZE * 0.8;
+            context.strokeStyle = `rgb(${tower.color.r}, ${tower.color.g}, ${tower.color.b})`;
+            context.stroke();
+
+            // Play the gunshot sound and apply damage to the target
+            soundGenerator.playGunshot(tower.type);
+            target.health -= tower.damage;
+          });
+
+          tower.lastShot = performance.now();
+        }
+      }
+    };
+
     // Define the update function for all entities. This function is idempotent, thus it can be called multiple times without side effects.
     const update = idempotent(() => {
-      state.entities.enemies = updateEnemies(state.entities.enemies, pathfindingData);
-      updateTowers(state.entities.towers, state.entities.enemies, pathfindingData);
+      state.entities.enemies = tickEnemies(state.entities.enemies);
+      tickTowers(state.entities.towers, state.entities.enemies);
     });
 
     // Define the game loop
     let lastTime = 0;
-    function gameLoop(currentTime: number) {
+    const gameLoop = (currentTime: number): void => {
       const deltaTime = currentTime - lastTime;
 
       engine.render();
@@ -117,44 +214,12 @@ const GRID_SIZE = 3; // pixels per grid cell (width and height)
       }
 
       requestAnimationFrame(gameLoop);
-    }
+    };
 
     // Start
     requestAnimationFrame(gameLoop);
   });
 })();
-
-const updateEnemies = (enemies: Enemy[], pathfindingData: Cell[]): Enemy[] => {
-  let aliveEnemies = enemies.filter((enemy) => enemy.health > 0);
-  for (const enemy of aliveEnemies) {
-    if (enemy.lastMove + enemy.speed > performance.now()) {
-      continue;
-    }
-
-    if (enemy.progress < pathfindingData.length - 1) {
-      enemy.progress++;
-    }
-
-    enemy.lastMove = performance.now();
-  }
-
-  return aliveEnemies;
-};
-
-const updateTowers = (towers: Tower[], enemies: Enemy[], pathfindingData: Cell[]) => {
-  for (const tower of towers) {
-    if (tower.lastShot + tower.fireRate > performance.now()) {
-      continue;
-    }
-
-    const target = enemies.find((enemy) => Math.abs(tower.x - pathfindingData[enemy.progress].x) <= tower.range);
-
-    if (target) {
-      state.entities.fireMissions.push({ tower, target });
-      tower.lastShot = performance.now();
-    }
-  }
-};
 
 const idempotent = <T extends Function>(fn: T): T => {
   let lastCall = 0;

@@ -38,13 +38,6 @@ export enum TowerType {
   Machinegun,
 }
 
-export type FireMission = {
-  /** Tower that is shooting */
-  tower: Tower;
-  /** Target enemy */
-  target: Enemy;
-};
-
 export const state = {
   path: {
     width: 3,
@@ -58,7 +51,14 @@ export const state = {
   entities: {
     enemies: [] as Enemy[],
     towers: [] as Tower[],
-    fireMissions: [] as FireMission[],
+  },
+  ui: {
+    fillStyle: "white",
+    font: "16px monospace",
+  },
+  user: {
+    money: 5,
+    towerType: TowerType.Basic,
   },
 };
 
@@ -68,13 +68,13 @@ export const generateTower = (x: number, y: number, type: TowerType): void => {
 
   switch (type) {
     case TowerType.Basic:
-      pushTower({ range: 10, damage: 2, fireRate: 100, color: { r: 200, g: 200, b: 255 } });
+      pushTower({ range: 15, damage: 2, fireRate: 100, color: { r: 200, g: 200, b: 255 } });
       return;
     case TowerType.Sniper:
-      pushTower({ range: 20, damage: 5, fireRate: 500, color: { r: 255, g: 200, b: 200 } });
+      pushTower({ range: 30, damage: 5, fireRate: 500, color: { r: 255, g: 200, b: 200 } });
       return;
     case TowerType.Machinegun:
-      pushTower({ range: 5, damage: 1, fireRate: 50, color: { r: 200, g: 255, b: 200 } });
+      pushTower({ range: 10, damage: 2, fireRate: 50, color: { r: 200, g: 255, b: 200 } });
       return;
   }
 };

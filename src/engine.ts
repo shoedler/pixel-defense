@@ -1,4 +1,5 @@
 import { Grid } from "./grid";
+import { state } from "./state";
 
 export type Color = { r: number; g: number; b: number; a?: number };
 
@@ -12,6 +13,7 @@ export class RenderEngine {
   private readonly context: CanvasRenderingContext2D;
   private readonly renderTasks: RenderTask[] = [];
   private readonly postProcessingTasks: PostProcessingTask[] = [];
+  private readonly oneShotPostProcessingTasks: PostProcessingTask[] = [];
   private backgroundLayer: { data: ImageData; grid: Grid };
   private buffer: ImageData;
   private dispatchTimes: number[] = [];
@@ -82,13 +84,19 @@ export class RenderEngine {
       this.dispatchTimes.push(performance.now());
     }
 
-    this.context.fillStyle = "white";
-    this.context.font = "12px Consolas";
+    this.context.fillStyle = state.ui.fillStyle;
+    this.context.font = state.ui.font;
     this.context.fillText(`fps ${this.fps.toFixed(1)}`, 10, 20);
 
     // Post processing tasks
     for (const task of this.postProcessingTasks) {
       task(this.context);
+    }
+
+    // One-shot post processing tasks
+    let oneShotTask: PostProcessingTask;
+    while ((oneShotTask = this.oneShotPostProcessingTasks.shift())) {
+      oneShotTask(this.context);
     }
   }
 
@@ -122,7 +130,7 @@ export class RenderEngine {
    * It's composited on top of the previous render task.
    * @param task The render task to add
    */
-  public queue(task: RenderTask) {
+  public registerRenderTask(task: RenderTask) {
     this.renderTasks.push(task);
   }
 
@@ -131,8 +139,16 @@ export class RenderEngine {
    * It's composited on top of the rendered scene.
    * @param task The post processing task to add
    */
-  public post(task: PostProcessingTask) {
+  public registerPostProcessingTask(task: PostProcessingTask) {
     this.postProcessingTasks.push(task);
+  }
+
+  /** Adds a one-shot post processing task to the queue. The task will be executed on the next dispatch cycle and then discarded.
+   * It's composited on top of the rendered scene.
+   * @param task The post processing task to add
+   */
+  public queueOneShotPostProcessingTask(task: PostProcessingTask) {
+    this.oneShotPostProcessingTasks.push(task);
   }
 
   private fresh(): Grid {

@@ -50,6 +50,7 @@ const generatePath: RenderTask<Cell[]> = (grid) => {
 
   const drawSegment = (x: number, y: number): void => {
     // Save the middle point of the segment to the pathfinding data
+    // This calculation should be in sync with the click event listener for tower placement
     const xMiddle = x + Math.floor(pathWidth / 2);
     const yMiddle = y + Math.floor(pathWidth / 2);
     pathfindingData.push({ x: xMiddle, y: yMiddle, color });
