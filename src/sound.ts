@@ -1,27 +1,24 @@
-import { TowerType } from "./state";
+export interface ISoundGeneratorConfigProvider {
+  get volume(): number;
+}
 
-export class SoundGenerator {
+class SoundGenerator {
   private audioContext: AudioContext;
 
-  public constructor(private readonly volume = 0.05) {
+  public constructor(private readonly configProvider: ISoundGeneratorConfigProvider) {
     this.audioContext = new window.AudioContext();
   }
 
-  public playGunshot(type: TowerType): void {
-    switch (type) {
-      case TowerType.Basic:
-        this.createGunfireSound(0.1, 600, 1000); // Basic: mid-pitch, short burst
-        break;
-      case TowerType.Sniper:
-        this.createGunfireSound(0.3, 300, 800); // Sniper: deeper, longer blast
-        break;
-      case TowerType.Machinegun:
-        this.createGunfireSound(0.05, 1000, 2000); // Machinegun: high-pitch, sharp burst
-        break;
-      default:
-        console.error("Invalid tower type");
-        break;
-    }
+  public playBasicGunshot(): void {
+    this.createGunfireSound(0.1, 600, 1000); // Basic: mid-pitch, short burst
+  }
+
+  public playSniperGunshot(): void {
+    this.createGunfireSound(0.3, 300, 800); // Sniper: deeper, longer blast
+  }
+
+  public playMachinegunGunshot(): void {
+    this.createGunfireSound(0.05, 1000, 2000); // Machinegun: high-pitch, sharp burst
   }
 
   public playPlacement(): void {
@@ -51,7 +48,7 @@ export class SoundGenerator {
     oscillator.frequency.setValueAtTime(oscFreq, currentTime);
 
     const gainNode = this.audioContext.createGain();
-    gainNode.gain.setValueAtTime(this.volume, currentTime);
+    gainNode.gain.setValueAtTime(this.configProvider.volume, currentTime);
     gainNode.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
 
     oscillator.connect(gainNode);
@@ -92,7 +89,7 @@ export class SoundGenerator {
 
     // Gain node for volume envelope
     const gainNode = this.audioContext.createGain();
-    gainNode.gain.setValueAtTime(this.volume, currentTime);
+    gainNode.gain.setValueAtTime(this.configProvider.volume, currentTime);
     gainNode.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
 
     // Connect the noise source and oscillator to the gain node and then to destination
@@ -109,3 +106,11 @@ export class SoundGenerator {
     oscillator.stop(currentTime + duration);
   }
 }
+
+export type SoundContext = {
+  soundGenerator: SoundGenerator;
+};
+
+export const createSoundEngine = (configProvider: ISoundGeneratorConfigProvider): SoundContext => {
+  return { soundGenerator: new SoundGenerator(configProvider) };
+};

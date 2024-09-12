@@ -60,6 +60,9 @@ export const state = {
     money: 5,
     towerType: TowerType.Basic,
   },
+  sound: {
+    volume: 0.05,
+  },
 };
 
 export const generateTower = (x: number, y: number, type: TowerType): void => {

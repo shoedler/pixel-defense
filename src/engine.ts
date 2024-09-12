@@ -1,5 +1,4 @@
 import { Grid } from "./grid";
-import { state } from "./state";
 
 export type Color = { r: number; g: number; b: number; a?: number };
 
@@ -11,7 +10,12 @@ export type PostProcessingEffect = {
   frames: PostProcessingTask[];
 };
 
-export class RenderEngine {
+export interface IRenderEngineConfigProvider {
+  get fillStyle(): string;
+  get font(): string;
+}
+
+class RenderEngine {
   private readonly width: number;
   private readonly height: number;
   private readonly context: CanvasRenderingContext2D;
@@ -23,12 +27,12 @@ export class RenderEngine {
   private buffer: ImageData;
   private dispatchTimes: number[] = [];
   private fps: number = 0;
-
   public constructor(
     private readonly canvas: HTMLCanvasElement,
     private readonly canvasWidth: number,
     private readonly canvasHeight: number,
-    private readonly gridSize: number
+    private readonly gridSize: number,
+    private readonly configProvider: IRenderEngineConfigProvider
   ) {
     this.context = this.canvas.getContext("2d", { willReadFrequently: true });
 
@@ -64,8 +68,8 @@ export class RenderEngine {
       this.dispatchTimes.push(performance.now());
     }
 
-    this.context.fillStyle = state.ui.fillStyle;
-    this.context.font = state.ui.font;
+    this.context.fillStyle = this.configProvider.fillStyle;
+    this.context.font = this.configProvider.font;
     this.context.fillText(`fps ${this.fps.toFixed(1)}`, 10, 20);
 
     // Post processing tasks
@@ -201,3 +205,18 @@ export class RenderEngine {
     return data;
   }
 }
+
+export type RenderContext = {
+  engine: RenderEngine;
+};
+
+export const createRenderer = (
+  canvas: HTMLCanvasElement,
+  canvasWidth: number,
+  canvasHeight: number,
+  gridSize: number,
+  configProvider: IRenderEngineConfigProvider
+): RenderContext => {
+  const engine = new RenderEngine(canvas, canvasWidth, canvasHeight, gridSize, configProvider);
+  return { engine };
+};

@@ -1,20 +1,16 @@
 import { Color } from "./engine";
-import { Cell, Coordinate, Grid } from "./grid";
-import { state } from "./state";
+import { Coordinate, Grid } from "./grid";
 
-const renderBackground = (grid: Grid) => {
+const renderBackground = (grid: Grid, backgroundColor: Color, backgroundColorVariance: number) => {
   const { width, height } = grid;
-  const {
-    variance,
-    color: { r, g, b },
-  } = state.background;
+  const { r, g, b, a } = backgroundColor;
 
   // Background generation
   for (let x = 0; x < width; x++) {
     for (let y = 0; y < height; y++) {
       const sign = Math.random() > 0.5 ? 1 : -1;
-      const random = Math.random() * variance * sign;
-      grid.set(x, y, { r: r + random, g: g + random, b: b + random });
+      const random = Math.random() * backgroundColorVariance * sign;
+      grid.set(x, y, { r: r + random, g: g + random, b: b + random, a });
     }
   }
 };
@@ -25,12 +21,6 @@ const renderPath = (grid: Grid, path: PathMap) => {
       grid.set(Number(x), Number(y), path[x][y]);
     }
   }
-};
-
-type PathMap = {
-  [key: number]: {
-    [key: number]: Color;
-  };
 };
 
 /**
@@ -169,13 +159,38 @@ const generatePathfindingData = (pathBlueprint: Coordinate[]): Coordinate[] => {
   return pathfindingData;
 };
 
-export const generateMap = (grid: Grid) => {
-  const { width: pathWidth, color: pathColor, generations: pathGenerations } = state.path;
+export type PathMap = {
+  [key: number]: {
+    [key: number]: Color;
+  };
+};
 
+export type MapContext = {
+  background: Grid;
+  pathfindingData: Coordinate[];
+  path: PathMap;
+};
+
+export interface IBackgroundConfigProvider {
+  get color(): Color;
+  get variance(): number;
+}
+
+export interface IPathConfigProvider {
+  get width(): number;
+  get color(): Color;
+  get generations(): number;
+}
+
+export const createMap = (
+  grid: Grid,
+  backgroundConfigProvider: IBackgroundConfigProvider,
+  pathConfigProvider: IPathConfigProvider
+): MapContext => {
   const paths: { path: PathMap; pathfindingData: Coordinate[] }[] = [];
 
-  for (let i = 0; i < pathGenerations; i++) {
-    const { path, pathBlueprint } = generatePath(grid.width, grid.height, pathWidth, pathColor);
+  for (let i = 0; i < pathConfigProvider.generations; i++) {
+    const { path, pathBlueprint } = generatePath(grid.width, grid.height, pathConfigProvider.width, pathConfigProvider.color);
     const pathfindingData = generatePathfindingData(pathBlueprint);
     paths.push({ path, pathfindingData });
   }
@@ -183,8 +198,8 @@ export const generateMap = (grid: Grid) => {
   // Choose the longest path
   const { path, pathfindingData } = paths.reduce((a, b) => (a.pathfindingData.length > b.pathfindingData.length ? a : b));
 
-  renderBackground(grid);
+  renderBackground(grid, backgroundConfigProvider.color, backgroundConfigProvider.variance);
   renderPath(grid, path);
 
-  return { path, pathfindingData };
+  return { path, pathfindingData, background: grid };
 };
