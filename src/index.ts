@@ -1,13 +1,13 @@
 import { createMap } from "./map";
 import { createRenderer } from "./engine";
 import { createSoundEngine } from "./sound";
-import { Enemy, generateEnemy, generateTower, state, Tower, TowerType } from "./state";
+import { Enemy, generateEnemy, generateTower, state, Tower, towerFactory, TowerType } from "./state";
 import { elementDimensions, idempotent } from "./util";
 
 const { innerWidth: viewportWidth, innerHeight: viewportHeight } = window;
 const { height: headerHeight } = elementDimensions(document.getElementsByClassName("wrapper")[0] as HTMLElement);
 
-const TICK_RATE = 40; // ticks per second
+const TICK_RATE = 60; // ticks per second
 const TICK_DURATION = 1000 / TICK_RATE; // duration of a tick in milliseconds
 const GRID_WIDTH = viewportWidth * 0.999;
 const GRID_HEIGHT = (viewportHeight - headerHeight) * 0.999;
@@ -41,6 +41,33 @@ document.addEventListener("DOMContentLoaded", (_) => {
     }
   });
 
+  // Post processing task for showing the tower range (manhattan distance) of the currently selected tower type
+  engine.registerPostProcessingTask((context) => {
+    if (!state.user.input.holdingRightClick || !state.user.input.mouse) {
+      return;
+    }
+
+    const { gridX, gridY } = state.user.input.mouse;
+    const { range, color } = towerFactory[state.user.towerType]();
+
+    // 45 degree angle turned square
+    const drawSquare = (x: number, y: number, size: number) => {
+      context.beginPath();
+      context.moveTo(x - size, y);
+      context.lineTo(x, y - size);
+      context.lineTo(x + size, y);
+      context.lineTo(x, y + size);
+      context.closePath();
+      context.stroke();
+      context.fill();
+    };
+
+    context.strokeStyle = `rgba(${color.r}, ${color.g}, ${color.b}, 1)`;
+    context.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, 0.2)`;
+    context.lineWidth = GRID_SIZE * 0.5;
+    drawSquare(gridX * GRID_SIZE + GRID_SIZE / 2, gridY * GRID_SIZE + GRID_SIZE / 2, range * GRID_SIZE);
+  });
+
   // Post processing task for UI
   engine.registerPostProcessingTask((context) => {
     const left = GRID_WIDTH * 0.9;
@@ -68,24 +95,50 @@ document.addEventListener("DOMContentLoaded", (_) => {
     }
   });
 
-  // Event listener for placing / removing towers
+  // Event listeners for right click hold and release
+  document.addEventListener("contextmenu", (event) => event.preventDefault());
+  document.addEventListener("mousedown", (event) => {
+    state.user.input.holdingRightClick = event.button === 2;
+  });
+  document.addEventListener("mouseleave", (_) => {
+    state.user.input.holdingRightClick = false;
+  });
   document.addEventListener("mouseup", (event) => {
+    if (event.button === 2) {
+      state.user.input.holdingRightClick = false;
+      event.stopImmediatePropagation();
+    }
+  });
+
+  // Event listener for mouse movement
+  document.addEventListener("mousemove", (event) => {
     const { x, y } = event;
     const { width, height } = canvas;
     const { left, top } = canvas.getBoundingClientRect();
 
-    // Bail out if the click was outside the canvas
     if (x < left || x > left + width || y < top || y > top + height) {
+      state.user.input.mouse = null;
       return;
     }
 
-    // Calculate the relative position of the click within the canvas
     const relativeX = x - left;
     const relativeY = y - top;
 
     // Calculate the grid cell that was clicked, based on the GRID_SIZE
     const gridX = Math.floor(((relativeX / width) * GRID_WIDTH) / GRID_SIZE);
     const gridY = Math.floor(((relativeY / height) * GRID_HEIGHT) / GRID_SIZE);
+
+    state.user.input.mouse = { gridX, gridY };
+  });
+
+  // Event listener for placing / removing towers
+  document.addEventListener("mouseup", (event) => {
+    // Bail out if the cursor is not over the canvas
+    if (!state.user.input.mouse) {
+      return;
+    }
+
+    const { gridX, gridY } = state.user.input.mouse;
 
     // Check if a tower already exists at the clicked position
     const tower = state.entities.towers.find((tower) => tower.x === gridX && tower.y === gridY);
@@ -119,7 +172,7 @@ document.addEventListener("DOMContentLoaded", (_) => {
     generateTower(gridX, gridY, state.user.towerType);
   });
 
-  // Update function for enemies, runs every tick
+  // Update function for enemies
   const tickEnemies = (enemies: Enemy[]): Enemy[] => {
     const aliveEnemies = enemies.filter((enemy) => enemy.health > 0);
 
@@ -141,58 +194,72 @@ document.addEventListener("DOMContentLoaded", (_) => {
     return aliveEnemies;
   };
 
+  // Update function for towers
   const tickTowers = (towers: Tower[], enemies: Enemy[]) => {
     for (const tower of towers) {
       if (tower.lastShot + tower.fireRate > performance.now()) {
         continue;
       }
 
-      const target = enemies.find((enemy) => {
-        // Check if the enemy is within range of the tower (Manhattan distance)
+      // Check if there are enemies within range of the tower (Manhattan distance)
+      const targets = enemies.filter((enemy) => {
         const { x, y } = pathfindingData[enemy.progress];
         return Math.abs(x - tower.x) + Math.abs(y - tower.y) <= tower.range;
       });
 
-      if (target) {
-        // Queue a post processing task to draw the shot
-        // This is nice because this will also play the gunshot sound and apply damage to the target, meaning that everything happens in the same tick
-        const { x, y } = pathfindingData[target.progress];
-        const ofs = GRID_SIZE / 2;
-
-        const drawLine = (context: CanvasRenderingContext2D, scale: number) => {
-          context.beginPath();
-          context.moveTo(tower.x * GRID_SIZE + ofs, tower.y * GRID_SIZE + ofs);
-          context.lineTo(x * GRID_SIZE + ofs, y * GRID_SIZE + ofs);
-          context.lineWidth = GRID_SIZE * scale;
-          context.strokeStyle = `rgb(${tower.color.r}, ${tower.color.g}, ${tower.color.b})`;
-          context.stroke();
-        };
-
-        engine.queuePostProcessingEffect({
-          frames: [
-            (context: CanvasRenderingContext2D) => {
-              // Play the gunshot sound and apply damage to the target
-              switch (tower.type) {
-                case TowerType.Basic:
-                  soundGenerator.playBasicGunshot();
-                  break;
-                case TowerType.Sniper:
-                  soundGenerator.playSniperGunshot();
-                  break;
-                case TowerType.Machinegun:
-                  soundGenerator.playMachinegunGunshot();
-                  break;
-              }
-              target.health -= tower.damage;
-              drawLine(context, 0.9);
-            },
-            (context: CanvasRenderingContext2D) => drawLine(context, 0.7),
-            (context: CanvasRenderingContext2D) => drawLine(context, 0.2),
-          ],
-        });
-
-        tower.lastShot = performance.now();
+      // If there are no targets in range, continue with the next tower
+      if (!targets.length) {
+        continue;
       }
+
+      // Prioritize: lowest health first, then closest to the end of the path.
+      const target = targets.reduce((best, current) => {
+        const currentIsLowerHealth = current.health < best.health;
+        const equalHealth = current.health === best.health;
+        const currentIsCloserToEnd = current.progress > best.progress;
+
+        return currentIsLowerHealth || (equalHealth && currentIsCloserToEnd) ? current : best;
+      }, targets[0]);
+
+      // Otherwise, we shoot at it.
+      // Queue a post processing task to draw the shot.
+      // This is nice because this will also play the gunshot sound and apply damage to the target, meaning that everything happens in the same tick
+      const { x, y } = pathfindingData[target.progress];
+      const ofs = GRID_SIZE / 2;
+
+      const drawLine = (context: CanvasRenderingContext2D, scale: number) => {
+        context.beginPath();
+        context.moveTo(tower.x * GRID_SIZE + ofs, tower.y * GRID_SIZE + ofs);
+        context.lineTo(x * GRID_SIZE + ofs, y * GRID_SIZE + ofs);
+        context.lineWidth = GRID_SIZE * scale;
+        context.strokeStyle = `rgb(${tower.color.r}, ${tower.color.g}, ${tower.color.b})`;
+        context.stroke();
+      };
+
+      engine.queuePostProcessingEffect({
+        frames: [
+          (context: CanvasRenderingContext2D) => {
+            // Play the gunshot sound and apply damage to the target
+            switch (tower.type) {
+              case TowerType.Basic:
+                soundGenerator.playBasicGunshot();
+                break;
+              case TowerType.Sniper:
+                soundGenerator.playSniperGunshot();
+                break;
+              case TowerType.Machinegun:
+                soundGenerator.playMachinegunGunshot();
+                break;
+            }
+            target.health -= tower.damage;
+            drawLine(context, 0.9);
+          },
+          (context: CanvasRenderingContext2D) => drawLine(context, 0.7),
+          (context: CanvasRenderingContext2D) => drawLine(context, 0.5),
+        ],
+      });
+
+      tower.lastShot = performance.now();
     }
   };
 
@@ -202,7 +269,7 @@ document.addEventListener("DOMContentLoaded", (_) => {
     tickTowers(state.entities.towers, state.entities.enemies);
   });
 
-  // Define the game loop
+  // And finally, create the game loop
   let lastTime = 0;
   const gameLoop = (currentTime: number): void => {
     const deltaTime = currentTime - lastTime;
@@ -214,7 +281,7 @@ document.addEventListener("DOMContentLoaded", (_) => {
       generateEnemy();
     }
 
-    if (deltaTime > TICK_DURATION) {
+    if (deltaTime >= TICK_DURATION) {
       lastTime = currentTime - (deltaTime % TICK_DURATION);
       engine.dispatch();
     }

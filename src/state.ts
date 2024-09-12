@@ -18,12 +18,13 @@ export type Tower = {
   x: number;
   /** Grid cell y coordinate on the map */
   y: number;
+  /** Last time the tower shot (performance.now()) */
+  lastShot: number;
+
   /** Range of the tower, radius in engine-pixels */
   range: number;
   /** Damage dealt to enemies in points */
   damage: number;
-  /** Last time the tower shot (performance.now()) */
-  lastShot: number;
   /** Delay between shots in ms */
   fireRate: number;
   /** Color of the tower */
@@ -59,27 +60,44 @@ export const state = {
   user: {
     money: 5,
     towerType: TowerType.Basic,
+    input: {
+      holdingRightClick: false,
+      mouse: null as { gridX: number; gridY: number } | null,
+    },
   },
   sound: {
     volume: 0.05,
   },
 };
 
-export const generateTower = (x: number, y: number, type: TowerType): void => {
-  const pushTower = (tower: Omit<Tower, "x" | "y" | "lastShot" | "type">) =>
-    state.entities.towers.push({ x, y, type, lastShot: 0, ...tower });
+type StatlessTower = Omit<Tower, "x" | "y" | "lastShot">;
 
-  switch (type) {
-    case TowerType.Basic:
-      pushTower({ range: 15, damage: 2, fireRate: 100, color: { r: 200, g: 200, b: 255 } });
-      return;
-    case TowerType.Sniper:
-      pushTower({ range: 30, damage: 5, fireRate: 500, color: { r: 255, g: 200, b: 200 } });
-      return;
-    case TowerType.Machinegun:
-      pushTower({ range: 10, damage: 2, fireRate: 50, color: { r: 200, g: 255, b: 200 } });
-      return;
-  }
+export const towerFactory: { [key in TowerType]: () => StatlessTower } = {
+  [TowerType.Basic]: () => ({
+    range: 15,
+    damage: 2,
+    fireRate: 100,
+    color: { r: 200, g: 200, b: 255 },
+    type: TowerType.Basic,
+  }),
+  [TowerType.Sniper]: () => ({
+    range: 30,
+    damage: 5,
+    fireRate: 500,
+    color: { r: 255, g: 200, b: 200 },
+    type: TowerType.Sniper,
+  }),
+  [TowerType.Machinegun]: () => ({
+    range: 10,
+    damage: 2,
+    fireRate: 50,
+    color: { r: 200, g: 255, b: 200 },
+    type: TowerType.Machinegun,
+  }),
+};
+
+export const generateTower = (x: number, y: number, type: TowerType): void => {
+  state.entities.towers.push({ x, y, lastShot: 0, ...towerFactory[type]() });
 };
 
 export const generateEnemy = (): void => {
