@@ -41,7 +41,8 @@ document.addEventListener("DOMContentLoaded", (_) => {
     }
   });
 
-  // Post processing task for showing the tower range (manhattan distance) of the currently selected tower type
+  // Post processing task for showing the tower range (manhattan distance) of the currently
+  // selected tower type, aswell as health bars over enemies
   engine.registerPostProcessingTask((context) => {
     if (!state.user.input.holdingRightClick || !state.user.input.mouse) {
       return;
@@ -66,6 +67,19 @@ document.addEventListener("DOMContentLoaded", (_) => {
     context.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, 0.2)`;
     context.lineWidth = GRID_SIZE * 0.5;
     drawSquare(gridX * GRID_SIZE + GRID_SIZE / 2, gridY * GRID_SIZE + GRID_SIZE / 2, range * GRID_SIZE);
+
+    // Show health bars over enemies
+    for (const enemy of state.entities.enemies) {
+      const { x, y } = pathfindingData[enemy.progress];
+      const barWidth = GRID_SIZE;
+      const barHeight = GRID_SIZE * 0.4;
+      const normalizedHealth = enemy.health / enemy.initialHealth;
+
+      context.fillStyle = "red";
+      context.fillRect(x * GRID_SIZE, y * GRID_SIZE - barHeight, barWidth, barHeight);
+      context.fillStyle = "rgb(0, 230, 0)";
+      context.fillRect(x * GRID_SIZE, y * GRID_SIZE - barHeight, barWidth * normalizedHealth, barHeight);
+    }
   });
 
   // Post processing task for UI
@@ -81,6 +95,17 @@ document.addEventListener("DOMContentLoaded", (_) => {
       `⚔️ ${state.entities.towers.reduce((acc, tower) => acc + tower.damage * (1000 / tower.fireRate), 0)} dps`,
       `❤️ ${state.entities.enemies.reduce((acc, enemy) => acc + enemy.health, 0)} hp`,
     ].forEach((text, index) => context.fillText(text, left, 20 + index * 20));
+
+    if (state.entities.enemies.length === 0) {
+      // Darken the screen
+      context.fillStyle = "rgba(0, 0, 0, 0.5)";
+      context.fillRect(0, 0, GRID_WIDTH, GRID_HEIGHT);
+
+      // Huge victory message
+      context.font = "48px monospace";
+      context.fillStyle = "white";
+      context.fillText("🎉 VICTORY!", GRID_WIDTH / 2 - 200, GRID_HEIGHT / 2);
+    }
   });
 
   // Event listener for changing the tower type
@@ -270,6 +295,11 @@ document.addEventListener("DOMContentLoaded", (_) => {
     tickTowers(state.entities.towers, state.entities.enemies);
   });
 
+  // Generate 50 enemies
+  for (let i = 0; i < 50; i++) {
+    generateEnemy();
+  }
+
   // And finally, create the game loop
   let lastTime = 0;
   const gameLoop = (currentTime: number): void => {
@@ -277,10 +307,6 @@ document.addEventListener("DOMContentLoaded", (_) => {
 
     engine.render();
     update();
-
-    if (state.entities.enemies.length < 50) {
-      generateEnemy();
-    }
 
     if (deltaTime >= TICK_DURATION) {
       lastTime = currentTime - (deltaTime % TICK_DURATION);

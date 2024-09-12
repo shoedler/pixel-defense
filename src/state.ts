@@ -1,4 +1,5 @@
 import { Color } from "./engine";
+import { hslToRgb } from "./util";
 
 export enum TowerType {
   Basic,
@@ -42,12 +43,15 @@ export type Enemy = {
   progress: number;
   /** Integer between 0 and 100 */
   health: number;
-  /** Color of the enemy */
-  color: Color;
   /** Last time the enemy moved (performance.now()) */
   lastMove: number;
+
+  /** Color of the enemy */
+  color: Color;
   /** Delay between moving to the next engine-pixel in ms */
   speed: number;
+  /** Initial health of the enemy */
+  initialHealth: number;
 };
 
 export type Tower = {
@@ -108,22 +112,30 @@ export const generateTower = (x: number, y: number, type: TowerType): Tower => {
 };
 
 export const generateEnemy = (): void => {
-  const randInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
+  const randInt = (min: number, max: number) => {
+    const value = Math.floor(Math.random() * (max - min + 1)) + min;
+    const normalized = (value - min) / (max - min);
+    return {
+      value,
+      normalized,
+    };
+  };
 
   const speed = randInt(100, 500);
-  const normalizedSpeed = (speed - 100) / 400;
 
-  // Randomize enemy color. We want to avoid very dark colors
-  // Speedier enemies are lighter
-  const r = Math.min(255, randInt(100, 255 + 100 * normalizedSpeed));
-  const g = Math.min(255, randInt(100, 255 + 100 * normalizedSpeed));
-  const b = Math.min(255, randInt(100, 255 + 100 * normalizedSpeed));
+  const h = Math.random();
+  const s = 0.85;
+  const l = 0.8 - speed.normalized / 2;
+
+  const { r, g, b } = hslToRgb(h, s, l);
+  const health = speed.value * 1.5;
 
   state.entities.enemies.push({
     progress: 0,
-    health: speed * 1.5,
-    color: { r, g, b },
+    health,
     lastMove: performance.now(),
-    speed: randInt(100, 500),
+    color: { r, g, b },
+    speed: speed.value,
+    initialHealth: health,
   });
 };
