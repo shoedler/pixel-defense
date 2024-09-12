@@ -7,6 +7,10 @@ export type RenderTask<T = void> = (grid: Grid, background?: Grid) => T;
 
 export type PostProcessingTask = (context: CanvasRenderingContext2D) => void;
 
+export type PostProcessingEffect = {
+  frames: PostProcessingTask[];
+};
+
 export class RenderEngine {
   private readonly width: number;
   private readonly height: number;
@@ -14,6 +18,7 @@ export class RenderEngine {
   private readonly renderTasks: RenderTask[] = [];
   private readonly postProcessingTasks: PostProcessingTask[] = [];
   private readonly oneShotPostProcessingTasks: PostProcessingTask[] = [];
+  private postProcessingEffects: PostProcessingEffect[] = [];
   private backgroundLayer: { data: ImageData; grid: Grid };
   private buffer: ImageData;
   private dispatchTimes: number[] = [];
@@ -93,6 +98,19 @@ export class RenderEngine {
       task(this.context);
     }
 
+    // Post processing effects
+    const newPostProcessingEffects: PostProcessingEffect[] = [];
+    for (const effect of this.postProcessingEffects) {
+      const frame = effect.frames.shift();
+      if (frame) {
+        frame(this.context);
+        if (effect.frames.length > 0) {
+          newPostProcessingEffects.push(effect);
+        }
+      }
+    }
+    this.postProcessingEffects = newPostProcessingEffects;
+
     // One-shot post processing tasks
     let oneShotTask: PostProcessingTask;
     while ((oneShotTask = this.oneShotPostProcessingTasks.shift())) {
@@ -143,12 +161,23 @@ export class RenderEngine {
     this.postProcessingTasks.push(task);
   }
 
-  /** Adds a one-shot post processing task to the queue. The task will be executed on the next dispatch cycle and then discarded.
+  /**
+   * Adds a one-shot post processing task to the queue. The task will be executed on the next dispatch cycle and then discarded.
    * It's composited on top of the rendered scene.
    * @param task The post processing task to add
    */
   public queueOneShotPostProcessingTask(task: PostProcessingTask) {
     this.oneShotPostProcessingTasks.push(task);
+  }
+
+  /**
+   * Adds a post processing effect to the queue. The effect will start execution on the next dispatch cycle.
+   * From that point on, the effect will be executed on every dispatch cycle until it's frame list is exhausted.
+   * After that, the effect is considered finished and will be removed from the queue.
+   * @param effect The post processing effect to add
+   */
+  public queuePostProcessingEffect(effect: PostProcessingEffect) {
+    this.postProcessingEffects.push(effect);
   }
 
   private fresh(): Grid {

@@ -2,11 +2,15 @@ import { backgroundRenderTask } from "./background";
 import { RenderEngine } from "./engine";
 import { SoundGenerator } from "./sound";
 import { Enemy, generateEnemy, generateTower, state, Tower, TowerType } from "./state";
+import { elementDimensions } from "./util";
+
+const { innerWidth: viewportWidth, innerHeight: viewportHeight } = window;
+const { height: headerHeight } = elementDimensions(document.getElementsByClassName("wrapper")[0] as HTMLElement);
 
 const TICK_RATE = 40; // ticks per second
 const TICK_DURATION = 1000 / TICK_RATE; // duration of a tick in milliseconds
-const GRID_WIDTH = 1000; // pixels
-const GRID_HEIGHT = 800; // pixels
+const GRID_WIDTH = viewportWidth * 0.999;
+const GRID_HEIGHT = (viewportHeight - headerHeight) * 0.999;
 const GRID_SIZE = 8; // pixels per grid cell (width and height)
 
 (() => {
@@ -169,20 +173,29 @@ const GRID_SIZE = 8; // pixels per grid cell (width and height)
         if (target) {
           // Queue a post processing task to draw the shot
           // This is nice because this will also play the gunshot sound and apply damage to the target, meaning that everything happens in the same tick
-          engine.queueOneShotPostProcessingTask((context) => {
-            const { x, y } = pathfindingData[target.progress];
-            const ofs = GRID_SIZE / 2;
+          const { x, y } = pathfindingData[target.progress];
+          const ofs = GRID_SIZE / 2;
 
+          const drawLine = (context: CanvasRenderingContext2D, scale: number) => {
             context.beginPath();
             context.moveTo(tower.x * GRID_SIZE + ofs, tower.y * GRID_SIZE + ofs);
             context.lineTo(x * GRID_SIZE + ofs, y * GRID_SIZE + ofs);
-            context.lineWidth = GRID_SIZE * 0.8;
+            context.lineWidth = GRID_SIZE * scale;
             context.strokeStyle = `rgb(${tower.color.r}, ${tower.color.g}, ${tower.color.b})`;
             context.stroke();
+          };
 
-            // Play the gunshot sound and apply damage to the target
-            soundGenerator.playGunshot(tower.type);
-            target.health -= tower.damage;
+          engine.queuePostProcessingEffect({
+            frames: [
+              (context: CanvasRenderingContext2D) => {
+                // Play the gunshot sound and apply damage to the target
+                soundGenerator.playGunshot(tower.type);
+                target.health -= tower.damage;
+                drawLine(context, 0.9);
+              },
+              (context: CanvasRenderingContext2D) => drawLine(context, 0.7),
+              (context: CanvasRenderingContext2D) => drawLine(context, 0.2),
+            ],
           });
 
           tower.lastShot = performance.now();
