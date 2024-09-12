@@ -24,7 +24,7 @@ export class RenderEngine {
   private dispatchTimes: number[] = [];
   private fps: number = 0;
 
-  private constructor(
+  public constructor(
     private readonly canvas: HTMLCanvasElement,
     private readonly canvasWidth: number,
     private readonly canvasHeight: number,
@@ -39,31 +39,6 @@ export class RenderEngine {
     this.height = Math.floor(this.canvasHeight / this.gridSize);
 
     this.context.fillStyle = "black";
-  }
-
-  public static create<T = void>(
-    canvas: HTMLCanvasElement,
-    canvasWidth: number,
-    canvasHeight: number,
-    gridSize: number,
-    backgroundLayerTask: RenderTask<T>
-  ): { engine: RenderEngine; taskResult: T } {
-    const engine = new RenderEngine(canvas, canvasWidth, canvasHeight, gridSize);
-
-    // Render the background layer
-    const grid = engine.fresh();
-    const taskResult = backgroundLayerTask(grid);
-
-    // Store the background layer, so we can clone it later
-    const data = engine.gridToImageData(grid);
-    engine.backgroundLayer = { data, grid };
-
-    return { engine, taskResult };
-  }
-
-  public reset() {
-    this.context.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
-    this.context.fillRect(0, 0, this.canvasWidth, this.canvasHeight);
   }
 
   /**
@@ -144,6 +119,15 @@ export class RenderEngine {
   }
 
   /**
+   * Sets the background layer of the engine.
+   */
+  public setBackgroundLayer(grid: Grid) {
+    // Store the background layer, so we can clone it later
+    const data = this.gridToImageData(grid);
+    this.backgroundLayer = { data, grid };
+  }
+
+  /**
    * Adds a render task to the queue. The task will be executed on the next render cycle.
    * It's composited on top of the previous render task.
    * @param task The render task to add
@@ -180,7 +164,11 @@ export class RenderEngine {
     this.postProcessingEffects.push(effect);
   }
 
-  private fresh(): Grid {
+  /**
+   * Creates a fresh grid instance with the same dimensions as the engine's grid.
+   * @returns A fresh grid instance with the same dimensions as the engine's grid
+   */
+  public fresh(): Grid {
     return new Grid(this.width, this.height);
   }
 

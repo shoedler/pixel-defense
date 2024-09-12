@@ -42,7 +42,7 @@ export const state = {
   path: {
     width: 3,
     color: { r: 50, g: 25, b: 12, a: 255 } as Color,
-    startY: 0,
+    generations: 100,
   },
   background: {
     color: { r: 100, g: 100, b: 25, a: 255 } as Color,

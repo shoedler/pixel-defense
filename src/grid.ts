@@ -1,8 +1,11 @@
 import { Color } from "./engine";
 
-export type Cell = {
+export type Coordinate = {
   x: number;
   y: number;
+};
+
+export type Cell = Coordinate & {
   color: Color;
 };
 
@@ -30,13 +33,4 @@ export class Grid {
 
     this.cells[x][y] = { x, y, color };
   }
-
-  public isWithinBounds = (x: number, y: number): boolean => {
-    return x >= 0 && x < this.width && y >= 0 && y < this.height;
-  };
-
-  public isCell = (x: number, y: number, color: Color): boolean => {
-    const cell = this.get(x, y);
-    return cell !== undefined && cell.color === color;
-  };
 }

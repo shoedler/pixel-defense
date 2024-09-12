@@ -1,5 +1,6 @@
-import { backgroundRenderTask } from "./background";
+import { generateMap } from "./map";
 import { RenderEngine } from "./engine";
+import { Cell, Coordinate, Grid } from "./grid";
 import { SoundGenerator } from "./sound";
 import { Enemy, generateEnemy, generateTower, state, Tower, TowerType } from "./state";
 import { elementDimensions } from "./util";
@@ -13,6 +14,20 @@ const GRID_WIDTH = viewportWidth * 0.999;
 const GRID_HEIGHT = (viewportHeight - headerHeight) * 0.999;
 const GRID_SIZE = 8; // pixels per grid cell (width and height)
 
+export type RenderContext = {
+  engine: RenderEngine;
+};
+
+export type MapContext = {
+  background: Grid;
+  pathfindingData: Coordinate[];
+  path: Cell[];
+};
+
+export type SoundContext = {
+  soundGenerator: SoundGenerator;
+};
+
 (() => {
   document.addEventListener("DOMContentLoaded", (_) => {
     const sketch = document.querySelector(".sketch") as HTMLDivElement;
@@ -22,14 +37,13 @@ const GRID_SIZE = 8; // pixels per grid cell (width and height)
     // Create the sound generator
     const soundGenerator = new SoundGenerator();
 
-    // Create & configure the render engine
-    const { engine, taskResult: pathfindingData } = RenderEngine.create(
-      canvas,
-      GRID_WIDTH,
-      GRID_HEIGHT,
-      GRID_SIZE,
-      backgroundRenderTask
-    );
+    // Create the render engine
+    const engine = new RenderEngine(canvas, GRID_WIDTH, GRID_HEIGHT, GRID_SIZE);
+
+    // Background generation
+    const background = engine.fresh();
+    const { pathfindingData, path } = generateMap(background);
+    engine.setBackgroundLayer(background);
 
     // Render task for entities
     engine.registerRenderTask((grid) => {
@@ -109,15 +123,7 @@ const GRID_SIZE = 8; // pixels per grid cell (width and height)
       }
 
       // It's also invalid to place a tower on the path
-      if (
-        pathfindingData.some((cell) => {
-          // This should be in sync with the pathgen logic
-          let { x, y } = cell;
-          x -= Math.floor(state.path.width / 2);
-          y -= Math.floor(state.path.width / 2);
-          return x <= gridX && gridX < x + state.path.width && y <= gridY && gridY < y + state.path.width;
-        })
-      ) {
+      if (path[gridX] && path[gridX][gridY]) {
         soundGenerator.playInvalidPlacement();
         return;
       }
@@ -133,8 +139,6 @@ const GRID_SIZE = 8; // pixels per grid cell (width and height)
       state.user.money -= 1;
       generateTower(gridX, gridY, state.user.towerType);
     });
-
-    engine.reset();
 
     // Update function for enemies, runs every tick
     const tickEnemies = (enemies: Enemy[]): Enemy[] => {

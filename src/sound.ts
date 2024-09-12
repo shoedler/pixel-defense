@@ -3,20 +3,20 @@ import { TowerType } from "./state";
 export class SoundGenerator {
   private audioContext: AudioContext;
 
-  public constructor() {
+  public constructor(private readonly volume = 0.05) {
     this.audioContext = new window.AudioContext();
   }
 
   public playGunshot(type: TowerType): void {
     switch (type) {
       case TowerType.Basic:
-        this.createGunfireSound(0.1, 600, 1000, 0.8); // Basic: mid-pitch, short burst
+        this.createGunfireSound(0.1, 600, 1000); // Basic: mid-pitch, short burst
         break;
       case TowerType.Sniper:
-        this.createGunfireSound(0.3, 300, 800, 1); // Sniper: deeper, longer blast
+        this.createGunfireSound(0.3, 300, 800); // Sniper: deeper, longer blast
         break;
       case TowerType.Machinegun:
-        this.createGunfireSound(0.05, 1000, 2000, 0.5); // Machinegun: high-pitch, sharp burst
+        this.createGunfireSound(0.05, 1000, 2000); // Machinegun: high-pitch, sharp burst
         break;
       default:
         console.error("Invalid tower type");
@@ -25,8 +25,8 @@ export class SoundGenerator {
   }
 
   public playPlacement(): void {
-    this.createSingleTone(0.02, 1800, "square", 1);
-    this.createSingleTone(0.05, 800, "square", 1);
+    this.createSingleTone(0.02, 1800, "square");
+    this.createSingleTone(0.05, 800, "square");
   }
 
   public playInvalidPlacement(): void {
@@ -43,7 +43,7 @@ export class SoundGenerator {
     this.createSingleTone(0.4, 150, "sine");
   }
 
-  private createSingleTone(duration: number, oscFreq: number, oscType: OscillatorType, volume: number = 1): void {
+  private createSingleTone(duration: number, oscFreq: number, oscType: OscillatorType): void {
     const currentTime = this.audioContext.currentTime;
 
     const oscillator = this.audioContext.createOscillator();
@@ -51,7 +51,7 @@ export class SoundGenerator {
     oscillator.frequency.setValueAtTime(oscFreq, currentTime);
 
     const gainNode = this.audioContext.createGain();
-    gainNode.gain.setValueAtTime(volume, currentTime);
+    gainNode.gain.setValueAtTime(this.volume, currentTime);
     gainNode.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
 
     oscillator.connect(gainNode);
@@ -62,7 +62,7 @@ export class SoundGenerator {
   }
 
   // Function to create gunfire sounds with noise and pitch drop for crack effect
-  private createGunfireSound(duration: number, oscFreq: number, noiseFilterFreq: number, volume: number): void {
+  private createGunfireSound(duration: number, oscFreq: number, noiseFilterFreq: number): void {
     const currentTime = this.audioContext.currentTime;
 
     // Create white noise buffer for the blast
@@ -92,7 +92,7 @@ export class SoundGenerator {
 
     // Gain node for volume envelope
     const gainNode = this.audioContext.createGain();
-    gainNode.gain.setValueAtTime(volume, currentTime);
+    gainNode.gain.setValueAtTime(this.volume, currentTime);
     gainNode.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
 
     // Connect the noise source and oscillator to the gain node and then to destination
