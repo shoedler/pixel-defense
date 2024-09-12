@@ -1,5 +1,5 @@
-import { createMap } from "./map";
 import { createRenderer } from "./engine";
+import { createMap } from "./map";
 import { createSoundEngine } from "./sound";
 import { Enemy, generateEnemy, generateTower, state, Tower, towerFactory, TowerType } from "./state";
 import { elementDimensions, idempotent } from "./util";
@@ -7,7 +7,7 @@ import { elementDimensions, idempotent } from "./util";
 const { innerWidth: viewportWidth, innerHeight: viewportHeight } = window;
 const { height: headerHeight } = elementDimensions(document.getElementsByClassName("wrapper")[0] as HTMLElement);
 
-const TICK_RATE = 60; // ticks per second
+const TICK_RATE = 30; // ticks per second
 const TICK_DURATION = 1000 / TICK_RATE; // duration of a tick in milliseconds
 const GRID_WIDTH = viewportWidth * 0.999;
 const GRID_HEIGHT = (viewportHeight - headerHeight) * 0.999;
@@ -148,6 +148,7 @@ document.addEventListener("DOMContentLoaded", (_) => {
       if (event.shiftKey) {
         state.entities.towers = state.entities.towers.filter((t) => t !== tower);
         soundGenerator.playRemovePlacement();
+        state.user.money += tower.cost;
       } else {
         soundGenerator.playInvalidPlacement();
       }
@@ -168,8 +169,8 @@ document.addEventListener("DOMContentLoaded", (_) => {
 
     // Add a tower at the clicked position
     soundGenerator.playPlacement();
-    state.user.money -= 1;
-    generateTower(gridX, gridY, state.user.towerType);
+    const newTower = generateTower(gridX, gridY, state.user.towerType);
+    state.user.money -= newTower.cost;
   });
 
   // Update function for enemies

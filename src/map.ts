@@ -46,9 +46,9 @@ const generatePath = (
   ];
 
   const isWithinBounds = (x: number, y: number): boolean => x >= 0 && x < width && y >= 0 && y < height;
-  const isCell = (x: number, y: number, color: Color): boolean => path[x] && path[x][y] && path[x][y] === color;
-
-  const countPathNeighbors = (x: number, y: number): number => {
+  const isOnPath = (x: number, y: number): boolean => path[x] && path[x][y] && path[x][y] === pathColor;
+  const isNotOnMapEdge = (x: number, y: number): boolean => y > 0 && y < height - pathWidth;
+  const isNotTouchingPath = (x: number, y: number): boolean => {
     const neighbors = [
       { x: x - pathWidth, y: y }, // Left
       { x: x + pathWidth, y: y }, // Right
@@ -56,7 +56,8 @@ const generatePath = (
       { x: x, y: y + pathWidth }, // Down
     ];
 
-    return neighbors.filter(({ x, y }) => isCell(x, y, pathColor)).length;
+    const count = neighbors.filter(({ x, y }) => isOnPath(x, y)).length;
+    return count <= 1; // Ensure next move doesn't touch the path
   };
 
   const drawSegment = (x: number, y: number): void => {
@@ -92,13 +93,15 @@ const generatePath = (
     const validMoves = directions.filter(
       ({ x, y }) =>
         isWithinBounds(currentX + x, currentY + y) &&
-        !isCell(currentX + x, currentY + y, pathColor) &&
-        countPathNeighbors(currentX + x, currentY + y) <= 1 // Ensure next move doesn't touch the path
+        !isOnPath(currentX + x, currentY + y) &&
+        isNotTouchingPath(currentX + x, currentY + y) &&
+        isNotOnMapEdge(currentX + x, currentY + y)
     );
 
     if (validMoves.length === 0) {
-      alert("No valid moves left. Stopping path generation.");
-      break;
+      const message = `No valid moves left. Stopping path generation. Current position: (${currentX}, ${currentY})`;
+      alert(message);
+      throw new Error(message);
     }
 
     // Choose a random valid move
