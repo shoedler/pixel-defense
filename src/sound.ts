@@ -10,99 +10,126 @@ class SoundGenerator {
   }
 
   public playBasicGunshot(): void {
-    this.createGunfireSound(0.1, 600, 1000); // Basic: mid-pitch, short burst
+    this.createGunfireSound(0.1, 1000, 500); // Mid-pitch, quick drop
   }
 
   public playSniperGunshot(): void {
-    this.createGunfireSound(0.3, 300, 800); // Sniper: deeper, longer blast
+    this.createGunfireSound(0.2, 800, 200); // Deeper, longer drop
   }
 
   public playMachinegunGunshot(): void {
-    this.createGunfireSound(0.05, 1000, 2000); // Machinegun: high-pitch, sharp burst
+    this.createGunfireSound(0.05, 1200, 800); // High-pitch, slight drop
   }
 
   public playPlacement(): void {
-    this.createSingleTone(0.02, 1800, "square");
-    this.createSingleTone(0.05, 800, "square");
-  }
-
-  public playInvalidPlacement(): void {
-    this.createSingleTone(0.2, 200, "square");
-    this.createSingleTone(0.4, 150, "square");
-  }
-
-  public playRemovePlacement(): void {
-    this.createSingleTone(0.5, 400, "triangle"); // Deeper scrap sound
+    // Ascending arpeggio for placement
+    const notes = [800, 1000, 1200];
+    const duration = 0.05;
+    notes.forEach((freq, i) => {
+      this.createSingleToneAtTime(duration, freq, "square", this.audioContext.currentTime + i * duration);
+    });
   }
 
   public playNotEnoughMoney(): void {
-    this.createSingleTone(0.2, 200, "sine");
-    this.createSingleTone(0.4, 150, "sine");
+    // Descending arpeggio for insufficient funds
+    const notes = [600, 500, 400];
+    const duration = 0.05;
+    notes.forEach((freq, i) => {
+      this.createSingleToneAtTime(duration, freq, "square", this.audioContext.currentTime + i * duration);
+    });
   }
 
-  private createSingleTone(duration: number, oscFreq: number, oscType: OscillatorType): void {
+  public playRemovePlacement(): void {
+    // Deep tone with frequency drop
+    const duration = 0.3;
     const currentTime = this.audioContext.currentTime;
 
     const oscillator = this.audioContext.createOscillator();
-    oscillator.type = oscType;
-    oscillator.frequency.setValueAtTime(oscFreq, currentTime);
+    oscillator.type = "triangle";
+    oscillator.frequency.setValueAtTime(500, currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(100, currentTime + duration);
 
     const gainNode = this.audioContext.createGain();
     gainNode.gain.setValueAtTime(this.configProvider.volume, currentTime);
     gainNode.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
 
-    oscillator.connect(gainNode);
-    gainNode.connect(this.audioContext.destination);
+    oscillator.connect(gainNode).connect(this.audioContext.destination);
 
-    oscillator.start();
+    oscillator.start(currentTime);
     oscillator.stop(currentTime + duration);
   }
 
-  // Function to create gunfire sounds with noise and pitch drop for crack effect
-  private createGunfireSound(duration: number, oscFreq: number, noiseFilterFreq: number): void {
+  public playInvalidPlacement(): void {
+    // Buzzer sound for invalid placement
+    const duration = 0.2;
     const currentTime = this.audioContext.currentTime;
 
-    // Create white noise buffer for the blast
-    const bufferSize = this.audioContext.sampleRate * duration;
-    const noiseBuffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
-    const output = noiseBuffer.getChannelData(0);
-
-    // Fill buffer with white noise
-    for (let i = 0; i < bufferSize; i++) {
-      output[i] = Math.random() * 2 - 1;
-    }
-
-    // Create noise source
-    const noiseSource = this.audioContext.createBufferSource();
-    noiseSource.buffer = noiseBuffer;
-
-    // Create a low-pass filter for the noise to simulate muzzle blast
-    const noiseFilter = this.audioContext.createBiquadFilter();
-    noiseFilter.type = "lowpass";
-    noiseFilter.frequency.setValueAtTime(noiseFilterFreq, currentTime);
-
-    // Create an oscillator for the crack of the gunfire
     const oscillator = this.audioContext.createOscillator();
-    oscillator.type = "triangle"; // Sharp, but not overly harsh
-    oscillator.frequency.setValueAtTime(oscFreq, currentTime);
-    oscillator.frequency.exponentialRampToValueAtTime(oscFreq / 10, currentTime + duration); // Quick pitch drop
+    oscillator.type = "sawtooth";
+    oscillator.frequency.setValueAtTime(150, currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(50, currentTime + duration);
 
-    // Gain node for volume envelope
     const gainNode = this.audioContext.createGain();
     gainNode.gain.setValueAtTime(this.configProvider.volume, currentTime);
     gainNode.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
 
-    // Connect the noise source and oscillator to the gain node and then to destination
-    noiseSource.connect(noiseFilter);
-    noiseFilter.connect(gainNode);
-    oscillator.connect(gainNode);
-    gainNode.connect(this.audioContext.destination);
+    oscillator.connect(gainNode).connect(this.audioContext.destination);
 
-    // Start sources
-    noiseSource.start();
-    noiseSource.stop(currentTime + duration);
+    oscillator.start(currentTime);
+    oscillator.stop(currentTime + duration);
+  }
 
-    oscillator.start();
+  private createSingleTone(duration: number, startFreq: number, oscType: OscillatorType): void {
+    const currentTime = this.audioContext.currentTime;
+    const oscillator = this.audioContext.createOscillator();
+    oscillator.type = oscType;
+
+    // Frequency modulation for pixely effect
+    oscillator.frequency.setValueAtTime(startFreq, currentTime);
+    oscillator.frequency.linearRampToValueAtTime(startFreq * 1.2, currentTime + duration / 2);
+    oscillator.frequency.linearRampToValueAtTime(startFreq, currentTime + duration);
+
+    const gainNode = this.audioContext.createGain();
+    gainNode.gain.setValueAtTime(this.configProvider.volume, currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
+
+    oscillator.connect(gainNode).connect(this.audioContext.destination);
+
+    oscillator.start(currentTime);
+    oscillator.stop(currentTime + duration);
+  }
+
+  private createSingleToneAtTime(duration: number, frequency: number, oscType: OscillatorType, startTime: number): void {
+    const oscillator = this.audioContext.createOscillator();
+    oscillator.type = oscType;
+    oscillator.frequency.setValueAtTime(frequency, startTime);
+
+    const gainNode = this.audioContext.createGain();
+    gainNode.gain.setValueAtTime(this.configProvider.volume, startTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+
+    oscillator.connect(gainNode).connect(this.audioContext.destination);
+
+    oscillator.start(startTime);
+    oscillator.stop(startTime + duration);
+  }
+
+  private createGunfireSound(duration: number, startFreq: number, endFreq: number): void {
+    const currentTime = this.audioContext.currentTime;
+    const oscillator = this.audioContext.createOscillator();
+    oscillator.type = "square"; // Retro square wave
+
+    // Frequency sweep for gunfire effect
+    oscillator.frequency.setValueAtTime(startFreq, currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(endFreq, currentTime + duration);
+
+    const gainNode = this.audioContext.createGain();
+    gainNode.gain.setValueAtTime(this.configProvider.volume, currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
+
+    oscillator.connect(gainNode).connect(this.audioContext.destination);
+
+    oscillator.start(currentTime);
     oscillator.stop(currentTime + duration);
   }
 }
