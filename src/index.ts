@@ -1,3 +1,4 @@
+import { draw45DegSquare, drawCircle, drawHealthBar, drawLine } from "./draw";
 import { createRenderer } from "./engine";
 import { createMap } from "./map";
 import { createSoundEngine } from "./sound";
@@ -11,7 +12,7 @@ const TICK_RATE = 30; // ticks per second
 const TICK_DURATION = 1000 / TICK_RATE; // duration of a tick in milliseconds
 const GRID_WIDTH = viewportWidth * 0.999;
 const GRID_HEIGHT = (viewportHeight - headerHeight) * 0.999;
-const GRID_SIZE = 8; // pixels per grid cell (width and height)
+export const GRID_SIZE = 8; // pixels per grid cell (width and height)
 
 document.addEventListener("DOMContentLoaded", (_) => {
   const sketch = document.querySelector(".sketch") as HTMLDivElement;
@@ -50,35 +51,13 @@ document.addEventListener("DOMContentLoaded", (_) => {
 
     const { gridX, gridY } = state.user.input.mouse;
     const { range, color } = towerFactory[state.user.towerType]();
-
-    // 45 degree angle turned square
-    const drawSquare = (x: number, y: number, size: number) => {
-      context.beginPath();
-      context.moveTo(x - size, y);
-      context.lineTo(x, y - size);
-      context.lineTo(x + size, y);
-      context.lineTo(x, y + size);
-      context.closePath();
-      context.stroke();
-      context.fill();
-    };
-
-    context.strokeStyle = `rgba(${color.r}, ${color.g}, ${color.b}, 1)`;
-    context.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, 0.2)`;
-    context.lineWidth = GRID_SIZE * 0.5;
-    drawSquare(gridX * GRID_SIZE + GRID_SIZE / 2, gridY * GRID_SIZE + GRID_SIZE / 2, range * GRID_SIZE);
+    draw45DegSquare(context, color, gridX * GRID_SIZE + GRID_SIZE / 2, gridY * GRID_SIZE + GRID_SIZE / 2, range * GRID_SIZE);
 
     // Show health bars over enemies
     for (const enemy of state.entities.enemies) {
-      const { x, y } = pathfindingData[enemy.progress];
-      const barWidth = GRID_SIZE;
-      const barHeight = GRID_SIZE * 0.4;
+      const enemyPos = pathfindingData[enemy.progress];
       const normalizedHealth = enemy.health / enemy.initialHealth;
-
-      context.fillStyle = "red";
-      context.fillRect(x * GRID_SIZE, y * GRID_SIZE - barHeight, barWidth, barHeight);
-      context.fillStyle = "rgb(0, 230, 0)";
-      context.fillRect(x * GRID_SIZE, y * GRID_SIZE - barHeight, barWidth * normalizedHealth, barHeight);
+      drawHealthBar(context, enemyPos, normalizedHealth);
     }
   });
 
@@ -250,38 +229,34 @@ document.addEventListener("DOMContentLoaded", (_) => {
       // Otherwise, we shoot at it.
       // Queue a post processing task to draw the shot.
       // This is nice because this will also play the gunshot sound and apply damage to the target, meaning that everything happens in the same tick
-      const { x, y } = pathfindingData[target.progress];
-      const ofs = GRID_SIZE / 2;
+      const enemyPos = pathfindingData[target.progress];
+      const towerPos = { x: tower.x, y: tower.y };
 
-      const drawLine = (context: CanvasRenderingContext2D, scale: number) => {
-        context.beginPath();
-        context.moveTo(tower.x * GRID_SIZE + ofs, tower.y * GRID_SIZE + ofs);
-        context.lineTo(x * GRID_SIZE + ofs, y * GRID_SIZE + ofs);
-        context.lineWidth = GRID_SIZE * scale;
-        context.strokeStyle = `rgb(${tower.color.r}, ${tower.color.g}, ${tower.color.b})`;
-        context.stroke();
-      };
+      const soundFn =
+        tower.type === TowerType.Basic
+          ? () => soundGenerator.playBasicGunshot()
+          : tower.type === TowerType.Sniper
+          ? () => soundGenerator.playSniperGunshot()
+          : tower.type === TowerType.Machinegun
+          ? () => soundGenerator.playMachinegunGunshot()
+          : () => {};
 
       engine.queuePostProcessingEffect({
         frames: [
           (context: CanvasRenderingContext2D) => {
             // Play the gunshot sound and apply damage to the target
-            switch (tower.type) {
-              case TowerType.Basic:
-                soundGenerator.playBasicGunshot();
-                break;
-              case TowerType.Sniper:
-                soundGenerator.playSniperGunshot();
-                break;
-              case TowerType.Machinegun:
-                soundGenerator.playMachinegunGunshot();
-                break;
-            }
+            soundFn();
             target.health -= tower.damage;
-            drawLine(context, 0.9);
+            drawLine(context, towerPos, enemyPos, tower.color, 0.9);
           },
-          (context: CanvasRenderingContext2D) => drawLine(context, 0.7),
-          (context: CanvasRenderingContext2D) => drawLine(context, 0.5),
+          (context: CanvasRenderingContext2D) => {
+            drawLine(context, towerPos, enemyPos, tower.color, 0.7);
+            drawCircle(context, enemyPos, tower.color, 2, 0.8);
+          },
+          (context: CanvasRenderingContext2D) => {
+            drawLine(context, towerPos, enemyPos, tower.color, 0.5);
+            drawCircle(context, enemyPos, tower.color, 1, 0.3);
+          },
         ],
       });
 
