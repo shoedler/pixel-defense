@@ -115,6 +115,9 @@ const generatePath = (
     drawSegment(currentX, currentY);
   }
 
+  // Add a final point to the pathblueprint, which is touching the right edge
+  pathBlueprint.push({ x: width - 1, y: currentY + Math.floor(pathWidth / 2) });
+
   return { path, pathBlueprint };
 };
 

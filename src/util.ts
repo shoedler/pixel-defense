@@ -70,3 +70,18 @@ const hueToRgb = (p: number, q: number, t: number) => {
   if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
   return p;
 };
+
+/**
+ * Returns a random integer between `min` and `max`.
+ * @param min The minimum value
+ * @param max The maximum value
+ * @returns The random integer and its normalized value (0-1)
+ */
+export const randomInteger = (min: number, max: number) => {
+  const value = Math.floor(Math.random() * (max - min + 1)) + min;
+  const normalized = (value - min) / (max - min);
+  return {
+    value,
+    normalized,
+  };
+};

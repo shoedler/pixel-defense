@@ -1,6 +1,6 @@
 import { Color } from "./engine";
 import { Coordinate } from "./grid";
-import { hslToRgb } from "./util";
+import { hslToRgb, randomInteger } from "./util";
 
 export enum TowerType {
   Basic,
@@ -32,7 +32,7 @@ export const state = {
   user: {
     money: 5,
     towerType: TowerType.Basic,
-    frontlineProgress: 30,
+    frontlineProgress: -1,
     input: {
       holdingRightClick: false,
       mouseGridPos: null as Coordinate | null,
@@ -53,8 +53,8 @@ export type Enemy = {
 
   /** Color of the enemy */
   color: Color;
-  /** Delay between moving to the next engine-pixel in ms */
-  speed: number;
+  /** Delay between moving to the next cell in ms (Higher is slower) */
+  moveRate: number;
   /** Initial health of the enemy */
   initialHealth: number;
 };
@@ -69,7 +69,7 @@ export type Tower = {
   range: number;
   /** Damage dealt to enemies in points */
   damage: number;
-  /** Delay between shots in ms */
+  /** Delay between shots in ms (Higher is slower) */
   fireRate: number;
   /** Color of the tower */
   color: Color;
@@ -108,37 +108,48 @@ export const towerFactory: { [key in TowerType]: () => StatelessTower } = {
   }),
 };
 
-export const generateTower = (pos: Coordinate, type: TowerType): Tower => {
+export const buildTower = (pos: Coordinate, type: TowerType): Tower => {
   const tower = { pos, lastShot: 0, ...towerFactory[type]() };
-  state.entities.towers.push(tower);
   return tower;
 };
 
-export const generateEnemy = (): void => {
-  const randInt = (min: number, max: number) => {
-    const value = Math.floor(Math.random() * (max - min + 1)) + min;
-    const normalized = (value - min) / (max - min);
-    return {
-      value,
-      normalized,
-    };
-  };
-
-  const speed = randInt(100, 500);
+export const generateEnemy = (minMoveRate: number, maxMoveRate: number): Enemy => {
+  const moveRate = randomInteger(minMoveRate, maxMoveRate);
 
   const h = Math.random();
-  const s = 0.85;
-  const l = 0.8 - speed.normalized / 2;
+  const s = 0.88;
+  const l = 0.8 - moveRate.normalized / 2;
 
   const { r, g, b } = hslToRgb(h, s, l);
-  const health = speed.value * 1.5;
+  const health = moveRate.value * 1.5;
 
-  state.entities.enemies.push({
+  const enemy: Enemy = {
     progress: 0,
     health,
     lastMove: performance.now(),
     color: { r, g, b },
-    speed: speed.value,
+    moveRate: moveRate.value,
     initialHealth: health,
-  });
+  };
+
+  return enemy;
+};
+
+export const generateEnemyWave = (
+  count: number,
+  minMoveRate: number,
+  maxMoveRate: number,
+  spawnDelayFactor: number = 1
+): void => {
+  let i = 0;
+  const spawnEnemy = () => {
+    const enemy = generateEnemy(minMoveRate, maxMoveRate);
+    state.entities.enemies.push(enemy);
+
+    if (++i < count) {
+      setTimeout(spawnEnemy, enemy.moveRate * spawnDelayFactor);
+    }
+  };
+
+  spawnEnemy();
 };

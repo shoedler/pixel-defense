@@ -13,7 +13,7 @@ import { createRenderer } from "./engine";
 import { sameCoordinate } from "./grid";
 import { createMap } from "./map";
 import { createSoundEngine } from "./sound";
-import { Enemy, generateEnemy, generateTower, state, Tower, towerFactory, TowerType } from "./state";
+import { buildTower, Enemy, generateEnemyWave, state, Tower, towerFactory, TowerType } from "./state";
 import { elementDimensions, idempotent, manhattanDistance } from "./util";
 
 const { innerWidth: viewportWidth, innerHeight: viewportHeight } = window;
@@ -56,7 +56,7 @@ document.addEventListener("DOMContentLoaded", (_) => {
     }
   });
 
-  // Post processing task for UI
+  // Post processing task for the frontline and background composition
   engine.registerPostProcessingTask((context) => {
     // Draw frontline progress
     drawFrontline(context, state.user.frontlineProgress, state.background.frontlineColor);
@@ -65,8 +65,12 @@ document.addEventListener("DOMContentLoaded", (_) => {
     compose(context, state.ui.compositeMode, () => {
       drawFillScreen(context, state.ui.compositeColor);
     });
-    drawVignette(context);
 
+    drawVignette(context);
+  });
+
+  // Post processing task for UI
+  engine.registerPostProcessingTask((context) => {
     // Draw UI text
     const left = (GRID_WIDTH - 1) * GRID_SIZE;
     const top = GRID_SIZE;
@@ -85,7 +89,7 @@ document.addEventListener("DOMContentLoaded", (_) => {
     ].forEach((text, index) => context.fillText(text, left, top + index * 20));
 
     // Draw game ending screen
-    if (state.user.frontlineProgress >= GRID_WIDTH) {
+    if (state.user.frontlineProgress >= GRID_WIDTH - 1) {
       drawGameEndingScreen(context, "Defeat! 💀");
       return;
     }
@@ -212,7 +216,8 @@ document.addEventListener("DOMContentLoaded", (_) => {
 
     // Add a tower at the clicked position
     soundGenerator.playPlacement();
-    const newTower = generateTower(mousePos, state.user.towerType);
+    const newTower = buildTower(mousePos, state.user.towerType);
+    state.entities.towers.push(newTower);
     state.user.money -= newTower.cost;
   });
 
@@ -244,7 +249,7 @@ document.addEventListener("DOMContentLoaded", (_) => {
 
     // Move the alive enemies
     for (const enemy of aliveEnemies) {
-      if (enemy.lastMove + enemy.speed > performance.now()) {
+      if (enemy.lastMove + enemy.moveRate > performance.now()) {
         continue;
       }
 
@@ -323,9 +328,8 @@ document.addEventListener("DOMContentLoaded", (_) => {
   });
 
   // Generate enemies
-  for (let i = 0; i < 50; i++) {
-    generateEnemy();
-  }
+  // generateEnemyWave(1000, 2, 2, 30);
+  generateEnemyWave(1000, 50, 300, 3);
 
   // And finally, create the game loop
   let lastTime = 0;
