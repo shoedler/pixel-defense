@@ -16,8 +16,6 @@ export interface IRenderEngineConfigProvider {
 }
 
 class RenderEngine {
-  private readonly width: number;
-  private readonly height: number;
   private readonly context: CanvasRenderingContext2D;
   private readonly renderTasks: RenderTask[] = [];
   private readonly postProcessingTasks: PostProcessingTask[] = [];
@@ -29,20 +27,14 @@ class RenderEngine {
   private fps: number = 0;
   public constructor(
     private readonly canvas: HTMLCanvasElement,
-    private readonly canvasWidth: number,
-    private readonly canvasHeight: number,
+    public readonly gridWidth: number,
+    public readonly gridHeight: number,
     private readonly gridSize: number,
     private readonly configProvider: IRenderEngineConfigProvider
   ) {
     this.context = this.canvas.getContext("2d", { willReadFrequently: true });
-
-    this.canvas.width = this.canvasWidth;
-    this.canvas.height = this.canvasHeight;
-
-    this.width = Math.floor(this.canvasWidth / this.gridSize);
-    this.height = Math.floor(this.canvasHeight / this.gridSize);
-
-    this.context.fillStyle = "black";
+    this.canvas.width = this.gridWidth * this.gridSize;
+    this.canvas.height = this.gridHeight * this.gridSize;
   }
 
   /**
@@ -57,20 +49,6 @@ class RenderEngine {
 
     this.context.putImageData(this.buffer, 0, 0);
     this.buffer = undefined;
-
-    // Fps counter
-    if (this.dispatchTimes.length > 20) {
-      const baseline = this.dispatchTimes[0];
-      const last = this.dispatchTimes[this.dispatchTimes.length - 1];
-      this.fps = 1000 / ((last - baseline) / this.dispatchTimes.length);
-      this.dispatchTimes = [];
-    } else {
-      this.dispatchTimes.push(performance.now());
-    }
-
-    this.context.fillStyle = this.configProvider.fillStyle;
-    this.context.font = this.configProvider.font;
-    this.context.fillText(`fps ${this.fps.toFixed(1)}`, 10, 20);
 
     // Post processing tasks
     for (const task of this.postProcessingTasks) {
@@ -95,6 +73,8 @@ class RenderEngine {
     while ((oneShotTask = this.oneShotPostProcessingTasks.shift())) {
       oneShotTask(this.context);
     }
+
+    this.renderFpsCounter();
   }
 
   /**
@@ -173,12 +153,12 @@ class RenderEngine {
    * @returns A fresh grid instance with the same dimensions as the engine's grid
    */
   public fresh(): Grid {
-    return new Grid(this.width, this.height);
+    return new Grid(this.gridWidth, this.gridHeight);
   }
 
   private gridToImageData(grid: Grid, data?: ImageData): ImageData {
     // Providing imageData allows us to composite multiple render tasks on top of each other
-    data = data ?? this.context.createImageData(this.canvasWidth, this.canvasHeight);
+    data = data ?? this.context.createImageData(this.canvas.width, this.canvas.height);
 
     // We skip all empty array slots - rows and cells - that's what's keeping this approach fast
     for (const row of grid.cells) {
@@ -204,6 +184,23 @@ class RenderEngine {
 
     return data;
   }
+
+  private renderFpsCounter() {
+    if (this.dispatchTimes.length > 20) {
+      const baseline = this.dispatchTimes[0];
+      const last = this.dispatchTimes[this.dispatchTimes.length - 1];
+      this.fps = 1000 / ((last - baseline) / this.dispatchTimes.length);
+      this.dispatchTimes = [];
+    } else {
+      this.dispatchTimes.push(performance.now());
+    }
+
+    this.context.fillStyle = this.configProvider.fillStyle;
+    this.context.font = this.configProvider.font;
+    this.context.textAlign = "start";
+    this.context.textBaseline = "top";
+    this.context.fillText(`fps ${this.fps.toFixed(1)}`, 10, 10);
+  }
 }
 
 export type RenderContext = {
@@ -212,11 +209,11 @@ export type RenderContext = {
 
 export const createRenderer = (
   canvas: HTMLCanvasElement,
-  canvasWidth: number,
-  canvasHeight: number,
+  gridWidth: number,
+  gridHeight: number,
   gridSize: number,
   configProvider: IRenderEngineConfigProvider
 ): RenderContext => {
-  const engine = new RenderEngine(canvas, canvasWidth, canvasHeight, gridSize, configProvider);
+  const engine = new RenderEngine(canvas, gridWidth, gridHeight, gridSize, configProvider);
   return { engine };
 };

@@ -9,20 +9,15 @@ export type Cell = Coordinate & {
   color: Color;
 };
 
+export const sameCoordinate = (a: Coordinate, b: Coordinate) => a.x === b.x && a.y === b.y;
+
 export class Grid {
   public readonly cells: Cell[][] = [];
 
   constructor(public readonly width: number, public readonly height: number) {}
 
-  public get(x: number, y: number): Cell | undefined {
-    try {
-      return this.cells[x][y];
-    } catch {
-      return undefined;
-    }
-  }
-
-  public set(x: number, y: number, color: Color) {
+  public set(pos: Coordinate, color: Color) {
+    const { x, y } = pos;
     if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
       return;
     }

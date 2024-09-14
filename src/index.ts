@@ -1,18 +1,32 @@
-import { draw45DegSquare, drawCircle, drawHealthBar, drawLine } from "./draw";
+import {
+  compose,
+  drawCircle,
+  drawFillScreen,
+  drawFrontline,
+  drawGameEndingScreen,
+  drawHealthBar,
+  drawLine,
+  drawManhattanSquare,
+  drawVignette,
+} from "./draw";
 import { createRenderer } from "./engine";
+import { sameCoordinate } from "./grid";
 import { createMap } from "./map";
 import { createSoundEngine } from "./sound";
 import { Enemy, generateEnemy, generateTower, state, Tower, towerFactory, TowerType } from "./state";
-import { elementDimensions, idempotent } from "./util";
+import { elementDimensions, idempotent, manhattanDistance } from "./util";
 
 const { innerWidth: viewportWidth, innerHeight: viewportHeight } = window;
 const { height: headerHeight } = elementDimensions(document.getElementsByClassName("wrapper")[0] as HTMLElement);
 
 const TICK_RATE = 30; // ticks per second
 const TICK_DURATION = 1000 / TICK_RATE; // duration of a tick in milliseconds
-const GRID_WIDTH = viewportWidth * 0.999;
-const GRID_HEIGHT = (viewportHeight - headerHeight) * 0.999;
+
+const CANVAS_WIDTH = viewportWidth * 0.999;
+const CANVAS_HEIGHT = (viewportHeight - headerHeight) * 0.999;
 export const GRID_SIZE = 8; // pixels per grid cell (width and height)
+export const GRID_HEIGHT = Math.floor(CANVAS_HEIGHT / GRID_SIZE);
+export const GRID_WIDTH = Math.floor(CANVAS_WIDTH / GRID_SIZE);
 
 document.addEventListener("DOMContentLoaded", (_) => {
   const sketch = document.querySelector(".sketch") as HTMLDivElement;
@@ -33,39 +47,34 @@ document.addEventListener("DOMContentLoaded", (_) => {
   // Render task for entities
   engine.registerRenderTask((grid) => {
     for (const enemy of state.entities.enemies) {
-      const { x, y } = pathfindingData[enemy.progress];
-      grid.set(x, y, enemy.color);
+      const pos = pathfindingData[enemy.progress];
+      grid.set(pos, enemy.color);
     }
     for (const tower of state.entities.towers) {
-      const { x, y, color } = tower;
-      grid.set(x, y, color);
-    }
-  });
-
-  // Post processing task for showing the tower range (manhattan distance) of the currently
-  // selected tower type, aswell as health bars over enemies
-  engine.registerPostProcessingTask((context) => {
-    if (!state.user.input.holdingRightClick || !state.user.input.mouse) {
-      return;
-    }
-
-    const { gridX, gridY } = state.user.input.mouse;
-    const { range, color } = towerFactory[state.user.towerType]();
-    draw45DegSquare(context, color, gridX * GRID_SIZE + GRID_SIZE / 2, gridY * GRID_SIZE + GRID_SIZE / 2, range * GRID_SIZE);
-
-    // Show health bars over enemies
-    for (const enemy of state.entities.enemies) {
-      const enemyPos = pathfindingData[enemy.progress];
-      const normalizedHealth = enemy.health / enemy.initialHealth;
-      drawHealthBar(context, enemyPos, normalizedHealth);
+      const { pos, color } = tower;
+      grid.set(pos, color);
     }
   });
 
   // Post processing task for UI
   engine.registerPostProcessingTask((context) => {
-    const left = GRID_WIDTH * 0.9;
+    // Draw frontline progress
+    drawFrontline(context, state.user.frontlineProgress, state.background.frontlineColor);
+
+    // Draw background composite layer and vignette
+    compose(context, state.ui.compositeMode, () => {
+      drawFillScreen(context, state.ui.compositeColor);
+    });
+    drawVignette(context);
+
+    // Draw UI text
+    const left = (GRID_WIDTH - 1) * GRID_SIZE;
+    const top = GRID_SIZE;
+
     context.fillStyle = state.ui.fillStyle;
     context.font = state.ui.font;
+    context.textAlign = "end";
+    context.textBaseline = "top";
 
     [
       `👾 ${state.entities.enemies.length} | 🏯 ${state.entities.towers.length}`,
@@ -73,17 +82,35 @@ document.addEventListener("DOMContentLoaded", (_) => {
       `🔲 ${TowerType[state.user.towerType]}`,
       `⚔️ ${state.entities.towers.reduce((acc, tower) => acc + tower.damage * (1000 / tower.fireRate), 0)} dps`,
       `❤️ ${state.entities.enemies.reduce((acc, enemy) => acc + enemy.health, 0)} hp`,
-    ].forEach((text, index) => context.fillText(text, left, 20 + index * 20));
+    ].forEach((text, index) => context.fillText(text, left, top + index * 20));
 
+    // Draw game ending screen
+    if (state.user.frontlineProgress >= GRID_WIDTH) {
+      drawGameEndingScreen(context, "Defeat! 💀");
+      return;
+    }
     if (state.entities.enemies.length === 0) {
-      // Darken the screen
-      context.fillStyle = "rgba(0, 0, 0, 0.5)";
-      context.fillRect(0, 0, GRID_WIDTH, GRID_HEIGHT);
+      drawGameEndingScreen(context, "Victory! 🎉");
+    }
+  });
 
-      // Huge victory message
-      context.font = "48px monospace";
-      context.fillStyle = "white";
-      context.fillText("🎉 VICTORY!", GRID_WIDTH / 2 - 200, GRID_HEIGHT / 2);
+  // Post processing task for showing the tower range of the currently
+  // selected tower type, aswell as health bars over enemies
+  engine.registerPostProcessingTask((context) => {
+    if (!state.user.input.holdingRightClick || !state.user.input.mouseGridPos) {
+      return;
+    }
+
+    // Draw the tower range
+    const mousePos = state.user.input.mouseGridPos;
+    const { range, color } = towerFactory[state.user.towerType]();
+    drawManhattanSquare(context, color, mousePos, range);
+
+    // Show health bars over enemies
+    for (const enemy of state.entities.enemies) {
+      const enemyPos = pathfindingData[enemy.progress];
+      const normalizedHealth = enemy.health / enemy.initialHealth;
+      drawHealthBar(context, enemyPos, normalizedHealth);
     }
   });
 
@@ -120,8 +147,9 @@ document.addEventListener("DOMContentLoaded", (_) => {
     const { width, height } = canvas;
     const { left, top } = canvas.getBoundingClientRect();
 
+    // Null-out the mouse position if the cursor is outside the canvas
     if (x < left || x > left + width || y < top || y > top + height) {
-      state.user.input.mouse = null;
+      state.user.input.mouseGridPos = null;
       return;
     }
 
@@ -129,23 +157,23 @@ document.addEventListener("DOMContentLoaded", (_) => {
     const relativeY = y - top;
 
     // Calculate the grid cell that was clicked, based on the GRID_SIZE
-    const gridX = Math.floor(((relativeX / width) * GRID_WIDTH) / GRID_SIZE);
-    const gridY = Math.floor(((relativeY / height) * GRID_HEIGHT) / GRID_SIZE);
+    const gridX = Math.floor(((relativeX / width) * CANVAS_WIDTH) / GRID_SIZE);
+    const gridY = Math.floor(((relativeY / height) * CANVAS_HEIGHT) / GRID_SIZE);
 
-    state.user.input.mouse = { gridX, gridY };
+    state.user.input.mouseGridPos = { x: gridX, y: gridY };
   });
 
   // Event listener for placing / removing towers
   document.addEventListener("mouseup", (event) => {
     // Bail out if the cursor is not over the canvas
-    if (!state.user.input.mouse) {
+    if (!state.user.input.mouseGridPos) {
       return;
     }
 
-    const { gridX, gridY } = state.user.input.mouse;
+    const mousePos = state.user.input.mouseGridPos;
 
     // Check if a tower already exists at the clicked position
-    const tower = state.entities.towers.find((tower) => tower.x === gridX && tower.y === gridY);
+    const tower = state.entities.towers.find((tower) => sameCoordinate(tower.pos, mousePos));
 
     // If there is a tower at the clicked position, remove it or bail out if the user wants to place a tower there
     if (tower) {
@@ -159,8 +187,19 @@ document.addEventListener("DOMContentLoaded", (_) => {
       return;
     }
 
+    // Bail out if the user is holding the shift key (Probably a misclick)
+    if (event.shiftKey) {
+      return;
+    }
+
     // It's also invalid to place a tower on the path
-    if (path[gridX] && path[gridX][gridY]) {
+    if (path[mousePos.x] && path[mousePos.x][mousePos.y]) {
+      soundGenerator.playInvalidPlacement();
+      return;
+    }
+
+    // Aswell as left of the frontline
+    if (mousePos.x <= state.user.frontlineProgress) {
       soundGenerator.playInvalidPlacement();
       return;
     }
@@ -173,26 +212,43 @@ document.addEventListener("DOMContentLoaded", (_) => {
 
     // Add a tower at the clicked position
     soundGenerator.playPlacement();
-    const newTower = generateTower(gridX, gridY, state.user.towerType);
+    const newTower = generateTower(mousePos, state.user.towerType);
     state.user.money -= newTower.cost;
   });
 
   // Update function for enemies
   const tickEnemies = (enemies: Enemy[]): Enemy[] => {
-    const aliveEnemies = enemies.filter((enemy) => enemy.health > 0);
+    const aliveEnemies = [] as Enemy[];
+    const finishedEnemies = [] as Enemy[];
+    const deadEnemies = [] as Enemy[];
 
-    // The player earns money for each enemy that reaches the end of the path
-    state.user.money += enemies.length - aliveEnemies.length;
+    for (const enemy of enemies) {
+      if (enemy.health <= 0) {
+        deadEnemies.push(enemy);
+        continue;
+      }
 
+      if (enemy.progress >= pathfindingData.length - 1) {
+        finishedEnemies.push(enemy);
+        continue;
+      }
+
+      aliveEnemies.push(enemy);
+    }
+
+    // The player earns money for each enemy that dies
+    state.user.money += deadEnemies.length;
+
+    // The frontline progresses for each enemy that reaches the end of the path
+    state.user.frontlineProgress += finishedEnemies.length;
+
+    // Move the alive enemies
     for (const enemy of aliveEnemies) {
       if (enemy.lastMove + enemy.speed > performance.now()) {
         continue;
       }
 
-      if (enemy.progress < pathfindingData.length - 1) {
-        enemy.progress++;
-      }
-
+      enemy.progress++;
       enemy.lastMove = performance.now();
     }
 
@@ -206,10 +262,10 @@ document.addEventListener("DOMContentLoaded", (_) => {
         continue;
       }
 
-      // Check if there are enemies within range of the tower (Manhattan distance)
+      // Check if there are enemies within range of the tower
       const targets = enemies.filter((enemy) => {
-        const { x, y } = pathfindingData[enemy.progress];
-        return Math.abs(x - tower.x) + Math.abs(y - tower.y) <= tower.range;
+        const enemyPos = pathfindingData[enemy.progress];
+        return manhattanDistance(tower.pos, enemyPos) <= tower.range;
       });
 
       // If there are no targets in range, continue with the next tower
@@ -227,11 +283,8 @@ document.addEventListener("DOMContentLoaded", (_) => {
       }, targets[0]);
 
       // Otherwise, we shoot at it.
-      // Queue a post processing task to draw the shot.
-      // This is nice because this will also play the gunshot sound and apply damage to the target, meaning that everything happens in the same tick
       const enemyPos = pathfindingData[target.progress];
-      const towerPos = { x: tower.x, y: tower.y };
-
+      const towerPos = tower.pos;
       const soundFn =
         tower.type === TowerType.Basic
           ? () => soundGenerator.playBasicGunshot()
@@ -247,6 +300,7 @@ document.addEventListener("DOMContentLoaded", (_) => {
             // Play the gunshot sound and apply damage to the target
             soundFn();
             target.health -= tower.damage;
+            tower.lastShot = performance.now();
             drawLine(context, towerPos, enemyPos, tower.color, 0.9);
           },
           (context: CanvasRenderingContext2D) => {
@@ -259,8 +313,6 @@ document.addEventListener("DOMContentLoaded", (_) => {
           },
         ],
       });
-
-      tower.lastShot = performance.now();
     }
   };
 
@@ -270,7 +322,7 @@ document.addEventListener("DOMContentLoaded", (_) => {
     tickTowers(state.entities.towers, state.entities.enemies);
   });
 
-  // Generate 50 enemies
+  // Generate enemies
   for (let i = 0; i < 50; i++) {
     generateEnemy();
   }

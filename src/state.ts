@@ -1,4 +1,5 @@
 import { Color } from "./engine";
+import { Coordinate } from "./grid";
 import { hslToRgb } from "./util";
 
 export enum TowerType {
@@ -16,6 +17,7 @@ export const state = {
   background: {
     color: { r: 100, g: 100, b: 25, a: 255 } as Color,
     variance: 30,
+    frontlineColor: { r: 100, g: 50, b: 50 } as Color,
   },
   entities: {
     enemies: [] as Enemy[],
@@ -24,13 +26,16 @@ export const state = {
   ui: {
     fillStyle: "white",
     font: "16px monospace",
+    compositeMode: "difference" as GlobalCompositeOperation,
+    compositeColor: { r: 100, g: 50, b: 50, a: 0.8 } as Color,
   },
   user: {
     money: 5,
     towerType: TowerType.Basic,
+    frontlineProgress: 30,
     input: {
       holdingRightClick: false,
-      mouse: null as { gridX: number; gridY: number } | null,
+      mouseGridPos: null as Coordinate | null,
     },
   },
   sound: {
@@ -55,14 +60,12 @@ export type Enemy = {
 };
 
 export type Tower = {
-  /** Grid cell x coordinate on the map */
-  x: number;
-  /** Grid cell y coordinate on the map */
-  y: number;
+  /** Position of the tower (Grid cell coordinates) */
+  pos: Coordinate;
   /** Last time the tower shot (performance.now()) */
   lastShot: number;
 
-  /** Range of the tower, radius in engine-pixels */
+  /** Range of the tower, radius in cells */
   range: number;
   /** Damage dealt to enemies in points */
   damage: number;
@@ -76,7 +79,7 @@ export type Tower = {
   cost: number;
 };
 
-type StatelessTower = Omit<Tower, "x" | "y" | "lastShot">;
+type StatelessTower = Omit<Tower, "pos" | "lastShot">;
 
 export const towerFactory: { [key in TowerType]: () => StatelessTower } = {
   [TowerType.Basic]: () => ({
@@ -105,8 +108,8 @@ export const towerFactory: { [key in TowerType]: () => StatelessTower } = {
   }),
 };
 
-export const generateTower = (x: number, y: number, type: TowerType): Tower => {
-  const tower = { x, y, lastShot: 0, ...towerFactory[type]() };
+export const generateTower = (pos: Coordinate, type: TowerType): Tower => {
+  const tower = { pos, lastShot: 0, ...towerFactory[type]() };
   state.entities.towers.push(tower);
   return tower;
 };

@@ -1,4 +1,5 @@
 import { Color } from "./engine";
+import { Coordinate } from "./grid";
 
 /**
  * Returns the dimensions of an element, including padding, border, and margin.
@@ -30,6 +31,13 @@ export const idempotent = <T extends Function>(delayMs: number, fn: T): T => {
     }
   }) as any;
 };
+
+/**
+ * Calculates the manhattan distance between two points.
+ * @param a The first coordinate
+ * @param b The second coordinate
+ */
+export const manhattanDistance = (a: Coordinate, b: Coordinate) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 
 /**
  * Converts an HSL color value to RGB. Conversion formula adapted from https://en.wikipedia.org/wiki/HSL_color_space.

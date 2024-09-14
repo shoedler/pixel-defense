@@ -10,7 +10,7 @@ const renderBackground = (grid: Grid, backgroundColor: Color, backgroundColorVar
     for (let y = 0; y < height; y++) {
       const sign = Math.random() > 0.5 ? 1 : -1;
       const random = Math.random() * backgroundColorVariance * sign;
-      grid.set(x, y, { r: r + random, g: g + random, b: b + random, a });
+      grid.set({ x, y }, { r: r + random, g: g + random, b: b + random, a });
     }
   }
 };
@@ -18,7 +18,7 @@ const renderBackground = (grid: Grid, backgroundColor: Color, backgroundColorVar
 const renderPath = (grid: Grid, path: PathMap) => {
   for (const x in path) {
     for (const y in path[x]) {
-      grid.set(Number(x), Number(y), path[x][y]);
+      grid.set({ x: Number(x), y: Number(y) }, path[x][y]);
     }
   }
 };
