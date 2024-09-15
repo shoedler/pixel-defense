@@ -10,19 +10,84 @@ class SoundGenerator {
   }
 
   public playBasicGunshot(): void {
-    this.createGunfireSound(0.1, 1000, 500); // Mid-pitch, quick drop
+    this.createGunfireSound(0.1, 800, 400, "square");
   }
 
   public playSniperGunshot(): void {
-    this.createGunfireSound(0.2, 800, 200); // Deeper, longer drop
+    this.createGunfireSound(0.2, 600, 200, "square");
   }
 
   public playMachinegunGunshot(): void {
-    this.createGunfireSound(0.05, 1200, 800); // High-pitch, slight drop
+    this.createGunfireSound(0.05, 1000, 800, "square");
+  }
+
+  public playMortarShot(): void {
+    // Deep launch sound with rising pitch
+    const duration = 0.5;
+    const currentTime = this.audioContext.currentTime;
+
+    const oscillator = this.audioContext.createOscillator();
+    oscillator.type = "triangle";
+    oscillator.frequency.setValueAtTime(100, currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(300, currentTime + duration);
+
+    const gainNode = this.audioContext.createGain();
+    gainNode.gain.setValueAtTime(0, currentTime);
+    gainNode.gain.linearRampToValueAtTime(this.configProvider.volume, currentTime + 0.1);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
+
+    oscillator.connect(gainNode).connect(this.audioContext.destination);
+
+    oscillator.start(currentTime);
+    oscillator.stop(currentTime + duration);
+  }
+
+  public playMortarExplosion(): void {
+    // Explosion with noise burst and low-frequency rumble
+    const duration = 1;
+    const currentTime = this.audioContext.currentTime;
+
+    // Noise burst
+    const noiseBuffer = this.audioContext.createBuffer(1, this.audioContext.sampleRate * duration, this.audioContext.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+
+    for (let i = 0; i < noiseBuffer.length; i++) {
+      output[i] = Math.random() * 2 - 1;
+    }
+
+    const noiseSource = this.audioContext.createBufferSource();
+    noiseSource.buffer = noiseBuffer;
+
+    const noiseFilter = this.audioContext.createBiquadFilter();
+    noiseFilter.type = "lowpass";
+    noiseFilter.frequency.setValueAtTime(1000, currentTime);
+    noiseFilter.frequency.exponentialRampToValueAtTime(100, currentTime + duration);
+
+    const noiseGain = this.audioContext.createGain();
+    noiseGain.gain.setValueAtTime(this.configProvider.volume, currentTime);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
+
+    noiseSource.connect(noiseFilter).connect(noiseGain).connect(this.audioContext.destination);
+
+    noiseSource.start(currentTime);
+    noiseSource.stop(currentTime + duration);
+
+    // Low-frequency rumble
+    const oscillator = this.audioContext.createOscillator();
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(50, currentTime);
+
+    const oscillatorGain = this.audioContext.createGain();
+    oscillatorGain.gain.setValueAtTime(this.configProvider.volume * 0.5, currentTime);
+    oscillatorGain.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
+
+    oscillator.connect(oscillatorGain).connect(this.audioContext.destination);
+
+    oscillator.start(currentTime);
+    oscillator.stop(currentTime + duration);
   }
 
   public playPlacement(): void {
-    // Ascending arpeggio for placement
     const notes = [800, 1000, 1200];
     const duration = 0.05;
     notes.forEach((freq, i) => {
@@ -30,8 +95,7 @@ class SoundGenerator {
     });
   }
 
-  public playNotEnoughMoney(): void {
-    // Descending arpeggio for insufficient funds
+  public playInvalidPlacement(): void {
     const notes = [600, 500, 400];
     const duration = 0.05;
     notes.forEach((freq, i) => {
@@ -40,7 +104,6 @@ class SoundGenerator {
   }
 
   public playRemovePlacement(): void {
-    // Deep tone with frequency drop
     const duration = 0.3;
     const currentTime = this.audioContext.currentTime;
 
@@ -59,8 +122,7 @@ class SoundGenerator {
     oscillator.stop(currentTime + duration);
   }
 
-  public playInvalidPlacement(): void {
-    // Buzzer sound for invalid placement
+  public playNotEnoughMoney(): void {
     const duration = 0.2;
     const currentTime = this.audioContext.currentTime;
 
@@ -84,7 +146,6 @@ class SoundGenerator {
     const oscillator = this.audioContext.createOscillator();
     oscillator.type = oscType;
 
-    // Frequency modulation for pixely effect
     oscillator.frequency.setValueAtTime(startFreq, currentTime);
     oscillator.frequency.linearRampToValueAtTime(startFreq * 1.2, currentTime + duration / 2);
     oscillator.frequency.linearRampToValueAtTime(startFreq, currentTime + duration);
@@ -114,20 +175,41 @@ class SoundGenerator {
     oscillator.stop(startTime + duration);
   }
 
-  private createGunfireSound(duration: number, startFreq: number, endFreq: number): void {
+  private createGunfireSound(duration: number, startFreq: number, endFreq: number, oscType: OscillatorType): void {
     const currentTime = this.audioContext.currentTime;
-    const oscillator = this.audioContext.createOscillator();
-    oscillator.type = "square"; // Retro square wave
 
-    // Frequency sweep for gunfire effect
+    // Noise component for the bang
+    const noiseBuffer = this.audioContext.createBuffer(1, this.audioContext.sampleRate * duration, this.audioContext.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+
+    for (let i = 0; i < noiseBuffer.length; i++) {
+      output[i] = Math.random() * 2 - 1;
+    }
+
+    const noiseSource = this.audioContext.createBufferSource();
+    noiseSource.buffer = noiseBuffer;
+
+    const noiseGain = this.audioContext.createGain();
+    noiseGain.gain.setValueAtTime(this.configProvider.volume, currentTime);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
+
+    noiseSource.connect(noiseGain).connect(this.audioContext.destination);
+
+    noiseSource.start(currentTime);
+    noiseSource.stop(currentTime + duration);
+
+    // Oscillator component for the crack
+    const oscillator = this.audioContext.createOscillator();
+    oscillator.type = oscType;
+
     oscillator.frequency.setValueAtTime(startFreq, currentTime);
     oscillator.frequency.exponentialRampToValueAtTime(endFreq, currentTime + duration);
 
-    const gainNode = this.audioContext.createGain();
-    gainNode.gain.setValueAtTime(this.configProvider.volume, currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
+    const oscillatorGain = this.audioContext.createGain();
+    oscillatorGain.gain.setValueAtTime(this.configProvider.volume * 0.5, currentTime);
+    oscillatorGain.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
 
-    oscillator.connect(gainNode).connect(this.audioContext.destination);
+    oscillator.connect(oscillatorGain).connect(this.audioContext.destination);
 
     oscillator.start(currentTime);
     oscillator.stop(currentTime + duration);

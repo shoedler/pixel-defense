@@ -306,14 +306,14 @@ document.addEventListener("DOMContentLoaded", (_) => {
             soundFn();
             target.health -= tower.damage;
             tower.lastShot = performance.now();
-            drawLine(context, towerPos, enemyPos, tower.color, 0.9);
+            drawLine(context, towerPos, enemyPos, tower.color, 0.9, 0.7);
           },
           (context: CanvasRenderingContext2D) => {
-            drawLine(context, towerPos, enemyPos, tower.color, 0.7);
+            drawLine(context, towerPos, enemyPos, tower.color, 0.7, 0.5);
             drawCircle(context, enemyPos, tower.color, 2, 0.8);
           },
           (context: CanvasRenderingContext2D) => {
-            drawLine(context, towerPos, enemyPos, tower.color, 0.5);
+            drawLine(context, towerPos, enemyPos, tower.color, 0.5, 0.8);
             drawCircle(context, enemyPos, tower.color, 1, 0.3);
           },
         ],

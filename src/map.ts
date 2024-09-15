@@ -84,6 +84,9 @@ const generatePath = (
   let currentX = 0;
   let currentY = Math.floor(Math.random() * (height - 2 * pathWidth)) + pathWidth; // Ensure starting position is within bounds
 
+  // Add the first point to the path blueprint, which is touching the left edge
+  pathBlueprint.push({ x: 0, y: currentY + Math.floor(pathWidth / 2) });
+
   // Draw the initial segment
   drawSegment(currentX, currentY);
 
