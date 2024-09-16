@@ -6,6 +6,7 @@ export enum TowerType {
   Basic,
   Sniper,
   Machinegun,
+  Mortar,
 }
 
 export const state = {
@@ -44,72 +45,80 @@ export const state = {
 };
 
 export type Enemy = {
-  /** Integer between 0 and path length */
+  /** State. Integer between 0 and path length */
   progress: number;
-  /** Integer between 0 and 100 */
+  /** State. Integer between 0 and 100 */
   health: number;
-  /** Last time the enemy moved (performance.now()) */
+  /** State. Last time the enemy moved (performance.now()) */
   lastMove: number;
 
   /** Color of the enemy */
-  color: Color;
+  readonly color: Color;
   /** Delay between moving to the next cell in ms (Higher is slower) */
-  moveRate: number;
+  readonly moveRate: number;
   /** Initial health of the enemy */
-  initialHealth: number;
+  readonly initialHealth: number;
 };
 
 export type Tower = {
-  /** Position of the tower (Grid cell coordinates) */
+  /** State. Position of the tower (Grid cell coordinates) */
   pos: Coordinate;
-  /** Last time the tower shot (performance.now()) */
+  /** State. Last time the tower shot (performance.now()) */
   lastShot: number;
 
   /** Range of the tower, radius in cells */
-  range: number;
+  readonly range: number;
   /** Damage dealt to enemies in points */
-  damage: number;
+  readonly damage: number;
   /** Delay between shots in ms (Higher is slower) */
-  fireRate: number;
+  readonly fireRate: number;
   /** Color of the tower */
-  color: Color;
+  readonly color: Color;
   /** Type of the tower */
-  type: TowerType;
+  readonly type: TowerType;
   /** Cost of the tower */
-  cost: number;
+  readonly cost: number;
 };
 
 type StatelessTower = Omit<Tower, "pos" | "lastShot">;
 
-export const towerFactory: { [key in TowerType]: () => StatelessTower } = {
-  [TowerType.Basic]: () => ({
+export const towers: { [key in TowerType]: StatelessTower } = {
+  [TowerType.Basic]: {
     range: 15,
     damage: 3,
     fireRate: 160,
     color: { r: 200, g: 200, b: 255 },
     type: TowerType.Basic,
-    cost: 1,
-  }),
-  [TowerType.Sniper]: () => ({
+    cost: 2,
+  },
+  [TowerType.Sniper]: {
     range: 30,
     damage: 6,
     fireRate: 300,
     color: { r: 255, g: 200, b: 200 },
     type: TowerType.Sniper,
-    cost: 1,
-  }),
-  [TowerType.Machinegun]: () => ({
+    cost: 4,
+  },
+  [TowerType.Machinegun]: {
     range: 10,
     damage: 2,
     fireRate: 80,
     color: { r: 200, g: 255, b: 200 },
     type: TowerType.Machinegun,
-    cost: 1,
-  }),
-};
+    cost: 3,
+  },
+  [TowerType.Mortar]: {
+    range: 40,
+    damage: 100,
+    fireRate: 2000,
+    color: { r: 255, g: 255, b: 200 },
+    type: TowerType.Mortar,
+    cost: 5,
+  },
+} as const;
 
 export const buildTower = (pos: Coordinate, type: TowerType): Tower => {
-  const tower = { pos, lastShot: 0, ...towerFactory[type]() };
+  const tower = { pos, lastShot: 0, ...towers[type] };
   return tower;
 };
 

@@ -23,7 +23,14 @@ export const compose = (context: CanvasRenderingContext2D, type: GlobalComposite
  * @param scale The scale of the line, 1 is @see GRID_SIZE
  * @param alpha The alpha of the line, 0-1
  */
-export const drawLine = (context: CanvasRenderingContext2D, from: Coordinate, to: Coordinate, color: Color, scale: number, alpha: number) => {
+export const drawLine = (
+  context: CanvasRenderingContext2D,
+  from: Coordinate,
+  to: Coordinate,
+  color: Color,
+  scale: number,
+  alpha: number
+) => {
   const ofs = GRID_SIZE / 2;
   const fromX = from.x * GRID_SIZE + ofs;
   const fromY = from.y * GRID_SIZE + ofs;
@@ -155,7 +162,7 @@ export const drawFrontline = (context: CanvasRenderingContext2D, progress: numbe
   context.moveTo(x, 0);
   context.lineTo(x, height);
   context.lineWidth = GRID_SIZE;
-  context.strokeStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
+  context.strokeStyle = `rgb(${color.r}, ${color.g}, ${color.b}, 0.8)`;
   context.stroke();
 
   context.lineWidth = 0;

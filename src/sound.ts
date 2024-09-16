@@ -40,6 +40,8 @@ class SoundGenerator {
 
     oscillator.start(currentTime);
     oscillator.stop(currentTime + duration);
+
+    this.createGunfireSound(0.2, 1000, 800, "triangle");
   }
 
   public playMortarExplosion(): void {
@@ -130,25 +132,6 @@ class SoundGenerator {
     oscillator.type = "sawtooth";
     oscillator.frequency.setValueAtTime(150, currentTime);
     oscillator.frequency.exponentialRampToValueAtTime(50, currentTime + duration);
-
-    const gainNode = this.audioContext.createGain();
-    gainNode.gain.setValueAtTime(this.configProvider.volume, currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
-
-    oscillator.connect(gainNode).connect(this.audioContext.destination);
-
-    oscillator.start(currentTime);
-    oscillator.stop(currentTime + duration);
-  }
-
-  private createSingleTone(duration: number, startFreq: number, oscType: OscillatorType): void {
-    const currentTime = this.audioContext.currentTime;
-    const oscillator = this.audioContext.createOscillator();
-    oscillator.type = oscType;
-
-    oscillator.frequency.setValueAtTime(startFreq, currentTime);
-    oscillator.frequency.linearRampToValueAtTime(startFreq * 1.2, currentTime + duration / 2);
-    oscillator.frequency.linearRampToValueAtTime(startFreq, currentTime + duration);
 
     const gainNode = this.audioContext.createGain();
     gainNode.gain.setValueAtTime(this.configProvider.volume, currentTime);

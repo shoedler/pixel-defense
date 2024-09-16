@@ -9,11 +9,11 @@ import {
   drawManhattanSquare,
   drawVignette,
 } from "./draw";
-import { createRenderer } from "./engine";
-import { sameCoordinate } from "./grid";
+import { createRenderer, PostProcessingTask } from "./engine";
+import { Coordinate, sameCoordinate } from "./grid";
 import { createMap } from "./map";
 import { createSoundEngine } from "./sound";
-import { buildTower, Enemy, generateEnemyWave, state, Tower, towerFactory, TowerType } from "./state";
+import { buildTower, Enemy, generateEnemyWave, state, Tower, towers, TowerType } from "./state";
 import { elementDimensions, idempotent, manhattanDistance } from "./util";
 
 const { innerWidth: viewportWidth, innerHeight: viewportHeight } = window;
@@ -24,7 +24,7 @@ const TICK_DURATION = 1000 / TICK_RATE; // duration of a tick in milliseconds
 
 const CANVAS_WIDTH = viewportWidth * 0.999;
 const CANVAS_HEIGHT = (viewportHeight - headerHeight) * 0.999;
-export const GRID_SIZE = 8; // pixels per grid cell (width and height)
+export const GRID_SIZE = 12; // pixels per grid cell (width and height)
 export const GRID_HEIGHT = Math.floor(CANVAS_HEIGHT / GRID_SIZE);
 export const GRID_WIDTH = Math.floor(CANVAS_WIDTH / GRID_SIZE);
 
@@ -82,8 +82,8 @@ document.addEventListener("DOMContentLoaded", (_) => {
 
     [
       `👾 ${state.entities.enemies.length} | 🏯 ${state.entities.towers.length}`,
-      `🪙 ${state.user.money}`,
-      `🔲 ${TowerType[state.user.towerType]}`,
+      `💰 ${state.user.money}`,
+      `🔲 ${TowerType[state.user.towerType]} (${towers[state.user.towerType].cost} 🪙)`,
       `⚔️ ${state.entities.towers.reduce((acc, tower) => acc + tower.damage * (1000 / tower.fireRate), 0)} dps`,
       `❤️ ${state.entities.enemies.reduce((acc, enemy) => acc + enemy.health, 0)} hp`,
     ].forEach((text, index) => context.fillText(text, left, top + index * 20));
@@ -107,7 +107,7 @@ document.addEventListener("DOMContentLoaded", (_) => {
 
     // Draw the tower range
     const mousePos = state.user.input.mouseGridPos;
-    const { range, color } = towerFactory[state.user.towerType]();
+    const { range, color } = towers[state.user.towerType];
     drawManhattanSquare(context, color, mousePos, range);
 
     // Show health bars over enemies
@@ -119,35 +119,32 @@ document.addEventListener("DOMContentLoaded", (_) => {
   });
 
   // Event listener for changing the tower type
-  document.addEventListener("keydown", (event) => {
-    const key = event.key;
-    if (key === "1") {
-      state.user.towerType = TowerType.Basic;
-    } else if (key === "2") {
-      state.user.towerType = TowerType.Sniper;
-    } else if (key === "3") {
-      state.user.towerType = TowerType.Machinegun;
+  document.addEventListener("keydown", ({ key }) => {
+    if ("123456789".includes(key)) {
+      const index = parseInt(key, 10) - 1;
+      if (index < Object.keys(TowerType).length / 2) {
+        state.user.towerType = index as TowerType;
+      }
     }
   });
 
   // Event listeners for right click hold and release
   document.addEventListener("contextmenu", (event) => event.preventDefault());
-  document.addEventListener("mousedown", (event) => {
-    state.user.input.holdingRightClick = event.button === 2;
+  document.addEventListener("mousedown", ({ button }) => {
+    state.user.input.holdingRightClick = button === 2;
   });
   document.addEventListener("mouseleave", (_) => {
     state.user.input.holdingRightClick = false;
   });
-  document.addEventListener("mouseup", (event) => {
-    if (event.button === 2) {
+  document.addEventListener("mouseup", ({ button }) => {
+    if (button === 2) {
       state.user.input.holdingRightClick = false;
       event.stopImmediatePropagation();
     }
   });
 
   // Event listener for mouse movement
-  document.addEventListener("mousemove", (event) => {
-    const { x, y } = event;
+  document.addEventListener("mousemove", ({ x, y }) => {
     const { width, height } = canvas;
     const { left, top } = canvas.getBoundingClientRect();
 
@@ -168,7 +165,7 @@ document.addEventListener("DOMContentLoaded", (_) => {
   });
 
   // Event listener for placing / removing towers
-  document.addEventListener("mouseup", (event) => {
+  document.addEventListener("mouseup", ({ shiftKey }) => {
     // Bail out if the cursor is not over the canvas
     if (!state.user.input.mouseGridPos) {
       return;
@@ -181,7 +178,7 @@ document.addEventListener("DOMContentLoaded", (_) => {
 
     // If there is a tower at the clicked position, remove it or bail out if the user wants to place a tower there
     if (tower) {
-      if (event.shiftKey) {
+      if (shiftKey) {
         state.entities.towers = state.entities.towers.filter((t) => t !== tower);
         soundGenerator.playRemovePlacement();
         state.user.money += tower.cost;
@@ -192,7 +189,7 @@ document.addEventListener("DOMContentLoaded", (_) => {
     }
 
     // Bail out if the user is holding the shift key (Probably a misclick)
-    if (event.shiftKey) {
+    if (shiftKey) {
       return;
     }
 
@@ -209,7 +206,7 @@ document.addEventListener("DOMContentLoaded", (_) => {
     }
 
     // Bail out if the user doesn't have enough money
-    if (state.user.money < 1) {
+    if (state.user.money < towers[state.user.towerType].cost) {
       soundGenerator.playNotEnoughMoney();
       return;
     }
@@ -288,36 +285,7 @@ document.addEventListener("DOMContentLoaded", (_) => {
       }, targets[0]);
 
       // Otherwise, we shoot at it.
-      const enemyPos = pathfindingData[target.progress];
-      const towerPos = tower.pos;
-      const soundFn =
-        tower.type === TowerType.Basic
-          ? () => soundGenerator.playBasicGunshot()
-          : tower.type === TowerType.Sniper
-          ? () => soundGenerator.playSniperGunshot()
-          : tower.type === TowerType.Machinegun
-          ? () => soundGenerator.playMachinegunGunshot()
-          : () => {};
-
-      engine.queuePostProcessingEffect({
-        frames: [
-          (context: CanvasRenderingContext2D) => {
-            // Play the gunshot sound and apply damage to the target
-            soundFn();
-            target.health -= tower.damage;
-            tower.lastShot = performance.now();
-            drawLine(context, towerPos, enemyPos, tower.color, 0.9, 0.7);
-          },
-          (context: CanvasRenderingContext2D) => {
-            drawLine(context, towerPos, enemyPos, tower.color, 0.7, 0.5);
-            drawCircle(context, enemyPos, tower.color, 2, 0.8);
-          },
-          (context: CanvasRenderingContext2D) => {
-            drawLine(context, towerPos, enemyPos, tower.color, 0.5, 0.8);
-            drawCircle(context, enemyPos, tower.color, 1, 0.3);
-          },
-        ],
-      });
+      fireMission[tower.type](tower, target, pathfindingData, soundGenerator, engine);
     }
   };
 
@@ -350,3 +318,123 @@ document.addEventListener("DOMContentLoaded", (_) => {
   // Start
   requestAnimationFrame(gameLoop);
 });
+
+const fireMission: {
+  [key in TowerType]: (
+    tower: Tower,
+    target: Enemy,
+    pathfindingData: Coordinate[],
+    sound: ReturnType<typeof createSoundEngine>["soundGenerator"],
+    engine: ReturnType<typeof createRenderer>["engine"]
+  ) => void;
+} = {
+  [TowerType.Basic]: (tower, target, pathfindingData, sound, engine) =>
+    engine.queuePostProcessingEffect({
+      frames: [
+        (context: CanvasRenderingContext2D) => {
+          sound.playBasicGunshot();
+          target.health -= tower.damage;
+          tower.lastShot = performance.now();
+
+          drawLine(context, tower.pos, pathfindingData[target.progress], tower.color, 0.9, 0.7);
+        },
+        (context: CanvasRenderingContext2D) => {
+          drawLine(context, tower.pos, pathfindingData[target.progress], tower.color, 0.7, 0.5);
+          drawCircle(context, pathfindingData[target.progress], tower.color, 1.5, 0.8);
+        },
+        (context: CanvasRenderingContext2D) => {
+          drawLine(context, tower.pos, pathfindingData[target.progress], tower.color, 0.5, 0.8);
+          drawCircle(context, pathfindingData[target.progress], tower.color, 1, 0.3);
+        },
+      ],
+    }),
+  [TowerType.Sniper]: (tower, target, pathfindingData, sound, engine) =>
+    engine.queuePostProcessingEffect({
+      frames: [
+        (context: CanvasRenderingContext2D) => {
+          sound.playSniperGunshot();
+          target.health -= tower.damage;
+          tower.lastShot = performance.now();
+
+          drawLine(context, tower.pos, pathfindingData[target.progress], tower.color, 0.9, 0.7);
+        },
+        (context: CanvasRenderingContext2D) => {
+          drawLine(context, tower.pos, pathfindingData[target.progress], tower.color, 0.7, 0.5);
+          drawCircle(context, pathfindingData[target.progress], tower.color, 2, 0.8);
+        },
+        (context: CanvasRenderingContext2D) => {
+          drawLine(context, tower.pos, pathfindingData[target.progress], tower.color, 0.5, 0.8);
+          drawCircle(context, pathfindingData[target.progress], tower.color, 1, 0.3);
+        },
+      ],
+    }),
+  [TowerType.Machinegun]: (tower, target, pathfindingData, sound, engine) =>
+    engine.queuePostProcessingEffect({
+      frames: [
+        (context: CanvasRenderingContext2D) => {
+          sound.playMachinegunGunshot();
+          target.health -= tower.damage;
+          tower.lastShot = performance.now();
+
+          drawLine(context, tower.pos, pathfindingData[target.progress], tower.color, 0.9, 0.7);
+        },
+        (context: CanvasRenderingContext2D) => {
+          drawLine(context, tower.pos, pathfindingData[target.progress], tower.color, 0.7, 0.5);
+          drawCircle(context, pathfindingData[target.progress], tower.color, 1.2, 0.8);
+        },
+        (context: CanvasRenderingContext2D) => {
+          drawLine(context, tower.pos, pathfindingData[target.progress], tower.color, 0.5, 0.8);
+          drawCircle(context, pathfindingData[target.progress], tower.color, 1, 0.3);
+        },
+      ],
+    }),
+  [TowerType.Mortar]: (tower, target, pathfindingData, sound, engine) => {
+    const IMPACT_OFFSET = 5;
+    const EXPLOSION_RADIUS = 2;
+
+    const impactIndex =
+      target.progress + IMPACT_OFFSET < pathfindingData.length ? target.progress + IMPACT_OFFSET : pathfindingData.length - 1;
+    const impactPos = pathfindingData[impactIndex];
+    const timeToImpact = IMPACT_OFFSET * target.moveRate;
+    const framesUntilImpact = timeToImpact / TICK_DURATION;
+
+    const towerPos = tower.pos;
+    const enemyPos = pathfindingData[target.progress];
+
+    let frames: PostProcessingTask[] = [
+      (context: CanvasRenderingContext2D) => {
+        sound.playMortarShot();
+        tower.lastShot = performance.now();
+        drawLine(context, towerPos, enemyPos, { r: 255, g: 100, b: 50 }, 0.5, 0.7); // "Aiming laser"
+      },
+    ];
+
+    const step = 1 / framesUntilImpact;
+    for (let i = 0; i < 1; i += step) {
+      frames.push((context: CanvasRenderingContext2D) => {
+        const projectilePos = {
+          x: towerPos.x + (impactPos.x - towerPos.x) * i,
+          y: towerPos.y + (impactPos.y - towerPos.y) * i,
+        };
+        drawLine(context, towerPos, pathfindingData[target.progress], { r: 255, g: 100, b: 50 }, 0.5, 0.2); // "Aiming laser"
+        drawLine(context, towerPos, projectilePos, tower.color, (1 - i) * 0.5 + 0.5, 0.3);
+        drawCircle(context, projectilePos, tower.color, 0.5, 0.8);
+      });
+    }
+
+    frames = frames.concat([
+      (context: CanvasRenderingContext2D) => {
+        sound.playMortarExplosion();
+        state.entities.enemies
+          .filter((enemy) => enemy.progress >= impactIndex - EXPLOSION_RADIUS && enemy.progress <= impactIndex + EXPLOSION_RADIUS)
+          .forEach((enemy) => (enemy.health -= tower.damage));
+        drawCircle(context, impactPos, tower.color, EXPLOSION_RADIUS * 2, 0.8);
+      },
+      (context: CanvasRenderingContext2D) => {
+        drawCircle(context, impactPos, tower.color, EXPLOSION_RADIUS, 0.5);
+      },
+    ]);
+
+    engine.queuePostProcessingEffect({ frames });
+  },
+};
