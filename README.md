@@ -2,7 +2,7 @@
 
 A simple, zero-dependency, HTML5 and Web Audio API -based towerdefense game.
 
-![app-preview](https://github.com/user-attachments/assets/e119533e-2d84-4e95-9445-96d5773a53d4)
+![game-preview](https://github.com/user-attachments/assets/6ac1c7e0-f529-411c-b1d8-394c0641ca2a)
 
 ## Usage
 
