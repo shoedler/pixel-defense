@@ -1,20 +1,20 @@
-# app-node-ts-template
+# pixel-defense
 
-A nice, simple template for TS apps
+A simple, zero-dependency, HTML5 and Web Audio API -based towerdefense game.
 
-- Webpack
-- TypeScript
-- Sass
-- BrowserSync
-- **No Linting**
-
-Preconfigured for vscode, but should work with any editor.
-Sourcemaps are configured, so the browser will report using the source files.
-![image](https://user-images.githubusercontent.com/38029550/203543381-6bb6ac2c-3219-463b-9e4d-1a5d4cd389f6.png)
-
-![image](https://user-images.githubusercontent.com/38029550/203543502-5c727feb-d67b-4a2e-b0d5-4c728e64ea50.png)
+![app-preview](https://github.com/user-attachments/assets/e119533e-2d84-4e95-9445-96d5773a53d4)
 
 ## Usage
 
-- Develop with `npm run start`
-- Build with `npm run build-prod`
+> [!TIP]
+> You can check out the [live demo](https://shoedler.github.io/) to see the game in action.
+
+### Development
+
+1. Run `npm ci` to install the dev dependencies.
+2. Run `npm run start` to start the development server.
+
+### Production
+
+1. Run `npm ci` to install the dev dependencies.
+2. Run `npm run build-prod` to build the app.
