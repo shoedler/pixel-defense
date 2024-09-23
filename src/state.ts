@@ -31,7 +31,7 @@ export const state = {
     compositeColor: { r: 100, g: 50, b: 50, a: 0.8 } as Color,
   },
   user: {
-    money: 5,
+    money: 10,
     towerType: TowerType.Basic,
     frontlineProgress: -1,
     input: {
