@@ -1,7 +1,7 @@
 {
-  "name": "app-node-ts-template",
+  "name": "pixel-defense",
   "version": "0.0.1",
-  "description": "A nice, simple template for TS apps",
+  "description": "A simple, zero-dependency, HTML5 and Web Audio API -based towerdefense game.",
   "author": "shoedler",
   "license": "Apache-2.0",
   "main": "dist/bundle.js",
